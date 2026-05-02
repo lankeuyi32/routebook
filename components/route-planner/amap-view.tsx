@@ -190,13 +190,23 @@ export function AMapView({
       })
       .then((AMap: AMapNS) => {
         if (cancelled || !containerRef.current) return
-        console.log("[v0] AMap JS API 加载成功，创建地图实例")
+        const el = containerRef.current
+        console.log(
+          "[v0] AMap JS API 加载成功，容器尺寸=",
+          el.clientWidth,
+          "x",
+          el.clientHeight,
+        )
+        if (el.clientWidth === 0 || el.clientHeight === 0) {
+          console.warn("[v0] AMap 容器尺寸为 0，地图无法渲染！")
+        }
         amapNsRef.current = AMap
-        const map = new AMap.Map(containerRef.current, {
+        const map = new AMap.Map(el, {
           zoom: 11,
           center: [116.397428, 39.90923],
           viewMode: "2D",
           mapStyle: "amap://styles/normal",
+          resizeEnable: true,
         })
         mapRef.current = map
 
@@ -361,8 +371,12 @@ export function AMapView({
   }
 
   return (
-    <div className="relative flex-1 flex flex-col overflow-hidden bg-muted">
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="relative flex-1 min-w-0 min-h-0 h-full overflow-hidden bg-muted">
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        style={{ width: "100%", height: "100%" }}
+      />
 
       {/* 顶部状态条 */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5">

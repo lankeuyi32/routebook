@@ -15,7 +15,7 @@ const AMapView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex-1 flex items-center justify-center bg-muted">
+      <div className="relative flex-1 min-w-0 h-full flex items-center justify-center bg-muted">
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="size-4 animate-spin" />
           正在加载地图…

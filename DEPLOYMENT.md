@@ -6,6 +6,26 @@
 
 ## 变更日志
 
+### 2026-05-02 · 修复地图容器尺寸 0×0（v1.2）
+
+**现象**：日志显示 `[v0] AMap JS API 加载成功，创建地图实例` 一切正常，状态切换为 `ready`，但用户看到的右侧地图区域**完全空白**（瓦片不渲染）。
+
+**根因**：高德 `new AMap.Map(container, ...)` 创建时如果 `container` 的 `clientWidth` / `clientHeight` 为 0，瓦片无法计算视口范围，**地图实例正常创建但什么都不画**。
+
+之前的容器层级 `flex-1 flex flex-col overflow-hidden` + 子级 `absolute inset-0`，在某些 flex 链路（缺 `min-h-0` / `min-w-0`）下，绝对定位子元素会被压缩到 0×0。
+
+**修复**：
+- `components/route-planner/amap-view.tsx`：
+  - 根 div 改为 `relative flex-1 min-w-0 min-h-0 h-full overflow-hidden bg-muted`，确保整体撑满。
+  - 容器 div 同时设置 `absolute inset-0` 与内联 `style={{ width: "100%", height: "100%" }}` 双保险。
+  - `new AMap.Map` 之前打印 `containerRef.current.clientWidth/Height`，便于排查。
+  - `AMap.Map` 选项加 `resizeEnable: true`，容器尺寸变化时自动重新计算。
+- `app/page.tsx`：dynamic loading 占位 div 也加 `h-full min-w-0`，防止过渡期 layout 抖动。
+
+**验证方法**：浏览器 DevTools Console 应能看到 `[v0] AMap JS API 加载成功，容器尺寸= XXX x YYY`，两个数字都应远大于 0。如果仍为 0，说明上层布局还在压缩——通常是 `<main>` 缺少 `h-screen` 或 flex 链路某层缺 `min-h-0`。
+
+---
+
 ### 2026-05-02 · 修复 SSR 报错 + 增强错误诊断（v1.1）
 
 **问题**：
@@ -149,7 +169,7 @@ body: { origin: "lng,lat", destination: "lng,lat", waypoints: ["lng,lat", ...] }
 - 自建 SRTM/ASTER GDEM 服务
 - Mapbox Tilequery + terrain-rgb
 
-接口签名 `fetchElevationProfile(path: LngLat[]) -> ElevationPoint[]` 保持稳定，调用方代码无需改动。
+接口签名 `fetchElevationProfile(path: LngLat[]) -> ElevationPoint[]` 保持稳定��调用方代码无需改动。
 
 ---
 
