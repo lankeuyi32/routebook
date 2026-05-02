@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { LeftPanel } from "@/components/route-planner/left-panel"
-import { MapView } from "@/components/route-planner/map-view"
+import { AMapView } from "@/components/route-planner/amap-view"
 import { useRoutePlanner } from "@/hooks/use-route-planner"
 import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner"
-import type { ExportFormat } from "@/types/route"
+import type { ExportFormat, AmapPOI } from "@/types/route"
 
 export default function Page() {
   const planner = useRoutePlanner()
@@ -47,11 +47,17 @@ export default function Page() {
         onExport={handleExport}
       />
 
-      <MapView
+      <AMapView
         waypoints={planner.waypoints}
         route={planner.route}
         elevation={planner.elevation}
         overviewSignal={overviewSignal}
+        onPickPoint={(poi: AmapPOI | null) => {
+          if (poi) {
+            planner.addWaypoint(poi)
+            toast.success("已添加点位", { description: poi.name })
+          }
+        }}
       />
 
       <Toaster position="top-center" />

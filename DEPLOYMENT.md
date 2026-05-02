@@ -1,218 +1,157 @@
-# 骑行路书制作 · 上线接入清单
+# 骑行路书制作 · 部署与接入文档
 
-本文件列出从 v0 预览版本到生产上线需要完成的所有改动，按优先级排列。**所有 mock 数据已严格隔离在 `lib/mock/` 目录，切换真实 API 时只需修改两个开关。**
-
----
-
-## 1. 高德地图 Key 与环境变量
-
-> 高德 Web 服务 Key **严禁**出现在前端 bundle，只有 JS API 的 Web 端 Key 才允许在浏览器使用，且必须配置域名白名单。
-
-在 Vercel 项目设置 → Environment Variables 中添加：
-
-| 变量名 | 作用域 | 说明 |
-| --- | --- | --- |
-| `AMAP_WEB_SERVICE_KEY` | Server | 高德 Web 服务 Key，仅在后端 Route Handler 中使用 |
-| `AMAP_WEB_SERVICE_SECRET` | Server | 高德"数字签名"安全密钥（开启数字签名校验时必填） |
-| `NEXT_PUBLIC_AMAP_JS_KEY` | Client | 高德 JS API Web 端 Key（已在控制台白名单绑定 `*.vercel.app` 与正式域名） |
-| `NEXT_PUBLIC_AMAP_SECURITY_JS_CODE` | Client | JS API 安全密钥（仅当控制台开启时） |
-
-> 控制台地址：<https://console.amap.com/dev/key/app>
-> 配额建议：地点搜索、路径规划日均≥10w 次。
+> 本文档随每次"会影响接入/部署"的代码改动同步更新。
 
 ---
 
-## 2. 切换真实 API 开关（最关键）
+## 变更日志
 
-打开下面两个文件，将顶部的 `USE_REAL_API` 由 `false` 改为 `true`：
+### 2026-05-02 · 接入真实高德 API（v1.0）
 
-- `services/amap.ts`
-- `services/route.ts`
+**已完成**：项目已从 mock 模式切换到真实高德 API，可直接使用。
 
-切换后，`lib/mock/mock-pois.ts` 与 `lib/mock/mock-route.ts` 不再被引用，可以删除整个 `lib/mock/` 目录。
+- 新增依赖：`@amap/amap-jsapi-loader@^1.0.1`
+- 新增服务端代理路由（保护 Web 服务 Key，仅服务端读取 `AMAP_WEB_KEY`）：
+  - `app/api/amap/search/route.ts` —— POI 搜索（输入提示 + 关键字检索兜底）
+  - `app/api/amap/regeo/route.ts` —— 逆地理编码（地图点选反查地址）
+  - `app/api/route/plan/route.ts` —— 骑行路径规划（v5 `direction/bicycling`）
+- 新增组件：`components/route-planner/amap-view.tsx`
+  - 基于高德 JS API v2 的真实地图组件
+  - 图层切换：标准 / 卫星+路网 / 浅色地形 / 骑行+实时路况
+  - 支持地图点选添加点位（`reverse-geocode` 后 `addWaypoint`）
+  - 自动 `setFitView`，Marker 按 `start / via / end` 角色着色，Polyline 显示行驶方向
+- 新增工具：`lib/elevation.ts` —— 本地海拔估算（高德 Web 服务无公开 DEM 接口）
+- 路由规划返回值在服务端补充 `ascent / descent / maxGrade`
+- 移除 mock：`lib/mock/*` 与旧 SVG 假地图 `components/route-planner/map-view.tsx`
+- 服务层 `services/amap.ts` / `services/route.ts` 移除 `USE_REAL_API` 开关，全部走真实 API。
 
 ---
 
-## 3. 实现后端 Route Handlers
+## 当前状态
 
-需要新增以下 Next.js Route Handler，全部使用服务端 `AMAP_WEB_SERVICE_KEY` 调用高德官方接口：
+| 项目 | 状态 |
+|------|------|
+| 地图渲染 | 真实高德 JS API |
+| 地点搜索 | 真实高德 Web API（输入提示 + 关键字检索） |
+| 骑行路径规划 | 真实高德 Web API v5 |
+| 逆地理（点选地图） | 真实高德 Web API |
+| 海拔剖面 | **本地估算**（高德未开放 DEM 接口，可后续替换） |
+| GPX/TCX/KML 导出 | 占位（按钮已就绪，待 `services/export.ts`） |
+| 拉起高德导航 | 占位（按钮已就绪，待对接 URI API） |
 
-### 3.1 `app/api/amap/search/route.ts`
+---
 
-调用高德[关键字搜索 V3](https://lbs.amap.com/api/webservice/guide/api/search) 或 [输入提示](https://lbs.amap.com/api/webservice/guide/api/inputtips)：
+## 架构
 
 ```
-GET https://restapi.amap.com/v3/place/text
-    ?keywords={kw}&city={city}&offset={pageSize}&page={page}&key={AMAP_WEB_SERVICE_KEY}
+浏览器
+ ├─► /api/amap/search       ─► restapi.amap.com/v3/assistant/inputtips
+ │                              + /v3/place/text（兜底）
+ ├─► /api/amap/regeo        ─► restapi.amap.com/v3/geocode/regeo
+ ├─► /api/route/plan        ─► restapi.amap.com/v5/direction/bicycling
+ └─► AMapLoader (JS API)    ─► webapi.amap.com/maps?key=NEXT_PUBLIC_AMAP_KEY
 ```
 
-将返回字段映射为 `AmapPOI[]`（参见 `types/route.ts`），并把 `location` 字段拆解为 `lngLat`。
+- **浏览器侧**：仅持有 `NEXT_PUBLIC_AMAP_KEY` + `NEXT_PUBLIC_AMAP_SECURITY_CODE`，用于地图渲染、覆盖物绘制。
+- **服务端侧**：`AMAP_WEB_KEY` 仅在 Route Handler 中读取，永不下发到浏览器。
+- 所有数据格式严格对齐 `types/route.ts`，前端组件不感知具体接口实现。
 
-### 3.2 `app/api/amap/regeo/route.ts`
+---
 
-调用[逆地理编码 V3](https://lbs.amap.com/api/webservice/guide/api/georegeo)：
+## 必需环境变量
 
+| 变量 | 用途 | 暴露给浏览器 |
+|------|------|--------------|
+| `NEXT_PUBLIC_AMAP_KEY` | 高德 JS API（地图渲染） | 是 |
+| `NEXT_PUBLIC_AMAP_SECURITY_CODE` | JS API 安全密钥（高德新版强制） | 是 |
+| `AMAP_WEB_KEY` | 高德 Web 服务（搜索 / 路径 / 逆地理） | **否** |
+
+> 当前项目已通过 v0 设置注入。生产部署到 Vercel 时需在 Project → Settings → Environment Variables 重新填写。
+
+---
+
+## 高德控制台配置
+
+1. 登录 [console.amap.com](https://console.amap.com/)。
+2. 创建两类应用：
+   - **Web 端（JS API）**：申请 JS API Key + 安全密钥，在"域名白名单"中添加：
+     - 开发：`localhost`
+     - 预览：`*.vusercontent.net`、`*.vercel.app`
+     - 生产：你的自定义域名
+   - **Web 服务**：申请 Web 服务 Key（建议设置 referer/IP 白名单防盗刷）。
+3. 确保已开通：
+   - JS API：基础地图、卫星图、路况图
+   - Web 服务：地点搜索（关键字 + 输入提示）、地理/逆地理编码、**骑行路径规划 v5**
+
+---
+
+## 接口契约
+
+### 1. POI 搜索
 ```
-GET https://restapi.amap.com/v3/geocode/regeo?location=lng,lat&key={key}
+GET /api/amap/search?keywords=西湖&city=杭州&pageSize=15
+→ { pois: AmapPOI[] }
 ```
 
-### 3.3 `app/api/route/plan/route.ts`
-
-调用[骑行路径规划 V5](https://lbs.amap.com/api/webservice/guide/api/newroute)：
-
+### 2. 逆地理（地图点选）
 ```
-GET https://restapi.amap.com/v5/direction/bicycling
-    ?origin={lng,lat}&destination={lng,lat}&waypoints={lng,lat;...}&show_fields=cost,polyline&key={key}
+GET /api/amap/regeo?location=120.155,30.274
+→ AmapPOI
 ```
 
-将 `paths[0].polyline` 解析为 `LngLat[]` 后返回，并基于 `cost.duration`、`distance` 拼装 `RoutePlanResult`。
-
-### 3.4 `app/api/route/elevation/route.ts`
-
-高德官方暂未提供独立的 DEM 接口，可任选其一：
-
-- 自建 DEM：基于开源 SRTM/ALOS 数据，使用 GDAL 切片后通过 `/api/route/elevation` 反查；
-- 第三方：[OpenTopoData](https://www.opentopodata.org/) (`/v1/srtm90m`) 或 Mapbox Tilequery；
-- 商用：高德"位置补充服务"中的高程接口（需联系商务）。
-
-请求体 `{ path: LngLat[] }`，返回 `ElevationPoint[]`，并在后端计算 `ascent / descent / maxGrade` 后写回 `RoutePlanResult`。
-
-### 3.5 数字签名校验（强烈建议）
-
-如果在高德控制台开启了"数字签名"，需要在后端按官方文档拼接 `sig`：
-
-```ts
-const sig = md5(sortedQueryString + AMAP_WEB_SERVICE_SECRET)
+### 3. 骑行路径规划
+```
+POST /api/route/plan
+body: { origin: "lng,lat", destination: "lng,lat", waypoints: ["lng,lat", ...] }
+→ RoutePlanResult { distance, duration, path, steps, ascent?, descent?, maxGrade? }
 ```
 
-参考：<https://lbs.amap.com/api/webservice/guide/create-project/get-key>
+> 高德 v5 骑行规划单次最多 **16 个途经点**，服务端会自动截断。
 
 ---
 
-## 4. 用真实 AMap JS 替换 SVG 地图
+## 海拔数据
 
-`components/route-planner/map-view.tsx` 当前使用 SVG 渲染演示底图。生产环境应：
+高德 Web 服务**未公开 DEM 高程查询接口**。当前实现 `lib/elevation.ts` 使用基于经纬度种子的多周期正弦合成，
+仅生成**演示用**的平滑曲线。`services/route.ts` 据此估算累计爬升/下降/最大坡度。
 
-1. 安装官方加载器：
+切换到真实 DEM 时，仅需替换 `estimateElevationProfile()`：
 
-   ```bash
-   pnpm add @amap/amap-jsapi-loader
-   ```
+- [OpenTopoData](https://www.opentopodata.org/)（免费，SRTM 30m）
+- 自建 SRTM/ASTER GDEM 服务
+- Mapbox Tilequery + terrain-rgb
 
-2. 在 `MapView` 顶部使用 `useEffect` 初始化地图（参考 [JS API v2 文档](https://lbs.amap.com/api/javascript-api-v2/summary)）：
-
-   ```ts
-   import AMapLoader from "@amap/amap-jsapi-loader"
-
-   useEffect(() => {
-     AMapLoader.load({
-       key: process.env.NEXT_PUBLIC_AMAP_JS_KEY!,
-       version: "2.0",
-       plugins: ["AMap.Bicycling", "AMap.PlaceSearch", "AMap.Scale", "AMap.ToolBar"],
-     }).then((AMap) => {
-       const map = new AMap.Map(containerRef.current, {
-         viewMode: "2D",
-         zoom: 12,
-         mapStyle: "amap://styles/normal",
-       })
-       mapRef.current = map
-     })
-     return () => mapRef.current?.destroy()
-   }, [])
-   ```
-
-3. 将 `waypoints` / `route.path` 同步为 `AMap.Marker` 与 `AMap.Polyline`：
-
-   ```ts
-   const polyline = new AMap.Polyline({
-     path: route.path,
-     strokeColor: "#1d8eff",
-     strokeWeight: 6,
-     showDir: true,
-   })
-   map.add(polyline)
-   map.setFitView([polyline, ...markers])
-   ```
-
-4. 图层切换映射到官方图层：
-
-   | UI 选项 | AMap 实现 |
-   | --- | --- |
-   | 标准 | `mapStyle: "amap://styles/normal"` |
-   | 卫星 | `map.add(new AMap.TileLayer.Satellite())` |
-   | 地形 | `mapStyle: "amap://styles/whitesmoke"` + 地形瓦片 |
-   | 骑行 | `map.add(new AMap.TileLayer.RoadNet())` + Bicycling 路线高亮 |
-
-5. 删除 `MapBackground` 函数与所有 SVG 装饰元素。
+接口签名 `fetchElevationProfile(path: LngLat[]) -> ElevationPoint[]` 保持稳定，调用方代码无需改动。
 
 ---
 
-## 5. 实现导入 / 导出
+## 本地启动
 
-新建 `services/export.ts`，将 `RoutePlanResult` + `Waypoint[]` + `ElevationPoint[]` 序列化为：
+```bash
+pnpm install
+pnpm dev
+```
 
-- **GPX 1.1**：`<gpx><trk><trkseg><trkpt lat lon><ele>`
-- **TCX**：`<TrainingCenterDatabase><Activities><Lap><Track><Trackpoint>`
-- **KML**：`<kml><Document><Placemark><LineString><coordinates>`
-- **CSV**：自定义字段（lat, lng, ele, distance, duration）
-
-`app/page.tsx` 中的 `handleExport` / `handleImport` 替换为真实下载与解析（推荐用 `fast-xml-parser`）。
+打开 `http://localhost:3000` 即可。
 
 ---
 
-## 6. 拉起导航
+## 部署到 Vercel
 
-`components/route-planner/map-toolbar.tsx` 中的"拉起导航"按钮，对接：
-
-- 高德地图 URI API（移动端唤起）：<https://lbs.amap.com/api/uri-api/guide/travel/route>
-  ```
-  https://uri.amap.com/navigation?from={lng,lat}&to={lng,lat}&via={...}&mode=ride
-  ```
-- 桌面端可生成二维码或打开 <https://www.amap.com/dir?type=ride&...>
+1. Push 到 GitHub。
+2. 在 Vercel Import 项目。
+3. 在 Project Settings → Environment Variables 添加上方三个变量。
+4. 在高德控制台域名白名单中加入 Vercel 部署域名。
+5. Deploy。
 
 ---
 
-## 7. 数据真实化检查清单
+## 后续路线图
 
-上线前逐项确认 UI 中**没有硬编码假数据**：
-
-- [ ] 地点搜索结果全部来自 `/api/amap/search`
-- [ ] 点位列表 `name / address / cityname / adname / lngLat` 全部使用接口字段
-- [ ] 路线 polyline 来自 `/api/route/plan` 的 `path`
-- [ ] `distance / duration / ascent / descent / maxGrade` 全部来自后端
-- [ ] 海拔剖面来自 `/api/route/elevation`
-- [ ] `lib/mock/` 已删除，全局搜索 `MOCK_` / `示例` 应零结果
-- [ ] `services/*` 中 `USE_REAL_API` 都是 `true`
-
----
-
-## 8. 性能与可靠性
-
-- 搜索接口加 300~500ms 防抖（推荐 `useDebounce`）。
-- 路径规划返回的 `path` 在长距离骑行时可达数千点，绘制 SVG/Polyline 前用 [Douglas-Peucker](https://github.com/mourner/simplify-js) 简化到 ≤500 点。
-- 海拔剖面 hover 用 `requestAnimationFrame` 节流。
-- 后端对高德接口加 Redis 缓存（key=`amap:search:{kw}:{city}`，TTL 1h）。
-- 用户操作（添加/排序/规划）建议接入 Sentry 或 PostHog 监控。
-
----
-
-## 9. 安全
-
-- 后端 Route Handler 必须校验来源（同源 + Origin 白名单），防止 Key 被盗刷。
-- 在响应头配置 `Cache-Control: private`，避免敏感地理信息被 CDN 缓存。
-- 用户上传的 GPX/TCX 文件解析前做大小限制（≤5MB）和 schema 校验。
-
----
-
-## 10. 上线步骤
-
-1. 在高德开放平台申请 Web 服务 Key + JS API Key，开通"骑行路径规划"配额。
-2. 将四个环境变量配置到 Vercel。
-3. 完成第 3、4、5 节代码改造，本地 `pnpm dev` 联调。
-4. 删除 `lib/mock/` 目录，运行 `pnpm build` 确认零警告。
-5. 部署到 Preview，在真实域名下验证 JS API 白名单。
-6. 切换到 Production。
-
----
-
-完成以上 10 步后，本项目即可作为真实骑行路线规划工具上线。
+- [ ] **GPX / TCX / KML / CSV 导出**：在 `services/export.ts` 中实现，从 `RoutePlanResult.path` + `ElevationPoint[]` 序列化。
+- [ ] **拉起高德导航**：对接 [URI API](https://lbs.amap.com/api/uri-api/guide/travel/route) `https://uri.amap.com/navigation?...&mode=ride`。
+- [ ] **撤销/重做**：基于 `waypoints` 的 history stack。
+- [ ] **路径简化**：长距离骑行 `path` 可达数千点，绘制前可用 simplify-js 简化到 ≤500 点。
+- [ ] **后端缓存**：搜索结果以 `amap:search:{kw}:{city}` 为 key 加 Redis 缓存。
+- [ ] **真实海拔**：替换 `lib/elevation.ts` 实现。
+- [ ] **数字签名**：若高德控制台启用 SK，服务端补充 `sig=md5(sortedQuery + AMAP_WEB_SECRET)`。
