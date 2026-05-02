@@ -329,12 +329,7 @@ function MapBackground({ layer }: { layer: MapLayer }) {
       )}
 
       {/* POI / 区域标签（中文） */}
-      <g
-        className={cn(
-          "[&_text]:fill-foreground [&_text]:font-medium",
-          layer === "satellite" && "[&_text]:fill-white",
-        )}
-      >
+      <g className="[&_text]:fill-foreground [&_text]:font-medium">
         <text x="220" y="240" fontSize="16" opacity="0.7">
           中央公园
         </text>
