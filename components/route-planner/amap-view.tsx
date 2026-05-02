@@ -17,7 +17,6 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import AMapLoader from "@amap/amap-jsapi-loader"
 import type { Waypoint, RoutePlanResult, LngLat, ElevationPoint } from "@/types/route"
 import { MapTopToolbar, MapZoomControls, type MapLayer } from "./map-toolbar"
 import { ElevationProfile } from "./elevation-profile"
@@ -177,13 +176,21 @@ export function AMapView({
     }
 
     let cancelled = false
-    AMapLoader.load({
-      key: jsKey,
-      version: "2.0",
-      plugins: ["AMap.Scale", "AMap.ToolBar"],
-    })
+    console.log("[v0] AMap init: 开始加载，key=", jsKey.slice(0, 6) + "...", "host=", window.location.host)
+    // 动态 import 避免 @amap/amap-jsapi-loader 在 SSR 时引用 window 报错
+    import("@amap/amap-jsapi-loader")
+      .then((mod) => {
+        const AMapLoader = mod.default ?? mod
+        console.log("[v0] AMap loader 加载成功，开始初始化 JS API…")
+        return AMapLoader.load({
+          key: jsKey,
+          version: "2.0",
+          plugins: ["AMap.Scale", "AMap.ToolBar"],
+        })
+      })
       .then((AMap: AMapNS) => {
         if (cancelled || !containerRef.current) return
+        console.log("[v0] AMap JS API 加载成功，创建地图实例")
         amapNsRef.current = AMap
         const map = new AMap.Map(containerRef.current, {
           zoom: 11,
@@ -207,8 +214,20 @@ export function AMapView({
       .catch((err: unknown) => {
         if (cancelled) return
         console.error("[v0] AMap 加载失败:", err)
+        const raw = err instanceof Error ? err.message : String(err)
+        // 识别常见错误码并给出友好提示
+        let friendly = raw
+        if (/USERKEY_PLAT_NOMATCH|InvalidUserKey/i.test(raw)) {
+          friendly = "高德 Key 类型不匹配：浏览器需使用「Web端(JS API)」类型的 Key"
+        } else if (/INVALID_USER_DOMAIN|domain/i.test(raw)) {
+          friendly = `Key 未授权当前域名：请在高德控制台为该 Key 添加白名单 ${window.location.host}`
+        } else if (/InvalidUserScode|Scode/i.test(raw)) {
+          friendly = "高德安全密钥(securityJsCode)配置错误"
+        } else if (/quota|QUOTA|DAILY_QUERY_OVER_LIMIT/i.test(raw)) {
+          friendly = "高德 API 配额已用尽"
+        }
         setStatus("error")
-        setErrorMsg(err instanceof Error ? err.message : "高德地图加载失败")
+        setErrorMsg(friendly)
       })
 
     return () => {
@@ -363,10 +382,53 @@ export function AMapView({
         {status === "error" && (
           <>
             <AlertCircle className="size-3.5 text-destructive" />
-            <span className="text-[12px] font-medium text-destructive">{errorMsg ?? "加载失败"}</span>
+            <span className="text-[12px] font-medium text-destructive">地图加载失败</span>
           </>
         )}
       </div>
+
+      {/* 错误全屏面板 */}
+      {status === "error" && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-muted/80 backdrop-blur-sm p-6">
+          <div className="max-w-md w-full bg-card border border-border rounded-lg shadow-lg p-5">
+            <div className="flex items-start gap-3 mb-3">
+              <AlertCircle className="size-5 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold mb-1">高德地图加载失败</h3>
+                <p className="text-[13px] text-muted-foreground leading-relaxed break-all">
+                  {errorMsg ?? "未知错误"}
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-border pt-3 mt-3">
+              <div className="text-[12px] font-medium text-foreground mb-1.5">请按以下步骤排查：</div>
+              <ol className="text-[12px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed">
+                <li>
+                  打开{" "}
+                  <a
+                    href="https://console.amap.com/dev/key/app"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline underline-offset-2"
+                  >
+                    高德控制台
+                  </a>
+                  ，找到对应的 Key
+                </li>
+                <li>确认该 Key 类型为「Web端(JS API)」</li>
+                <li>
+                  在「域名白名单」中添加：
+                  <code className="ml-1 px-1 py-0.5 bg-muted rounded text-foreground font-mono text-[11px]">
+                    {typeof window !== "undefined" ? window.location.host : "*.vusercontent.net"}
+                  </code>
+                </li>
+                <li>确认「安全密钥(securityJsCode)」配置正确</li>
+                <li>保存后等 1-2 分钟生效，刷新页面</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 地图点选按钮 */}
       {status === "ready" && onPickPoint && (

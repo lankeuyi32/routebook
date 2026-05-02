@@ -6,6 +6,34 @@
 
 ## 变更日志
 
+### 2026-05-02 · 修复 SSR 报错 + 增强错误诊断（v1.1）
+
+**问题**：
+1. 客户端首次访问报错 `ReferenceError: window is not defined` —— 因 `@amap/amap-jsapi-loader` 在模块顶层引用了 `window`，被 Next.js SSR 阶段执行时炸掉。
+2. 用户反馈"地图没有正常加载出来"，但页面只显示一行小字提示，看不到具体原因。
+
+**修复**：
+- `app/page.tsx`：使用 `next/dynamic({ ssr: false })` 包装 `AMapView`，地图组件只在浏览器端渲染。
+- `components/route-planner/amap-view.tsx`：
+  - 把 `import AMapLoader from "@amap/amap-jsapi-loader"` 改为 `useEffect` 内的动态 `import()`，进一步消除 SSR 路径上的副作用。
+  - 加载阶段打印 `console.log("[v0] AMap init …")` 调试信息（含 host 与 key 前缀）。
+  - 错误捕获识别常见错误码：`USERKEY_PLAT_NOMATCH` / `INVALID_USER_DOMAIN` / `InvalidUserScode` / `DAILY_QUERY_OVER_LIMIT`，给出中文友好提示。
+  - 错误状态全屏遮罩，列出 5 步排查清单（含当前 `window.location.host`，方便复制到高德白名单）。
+
+**重要：高德 Key 白名单配置**
+
+如果你看到错误面板，最常见的原因是 **当前预览域名未在高德控制台 Key 白名单中**。请：
+
+1. 打开 [高德控制台 - 应用管理](https://console.amap.com/dev/key/app)
+2. 找到对应的 Key（与 `NEXT_PUBLIC_AMAP_KEY` 一致）
+3. 确认 Key 类型为「**Web端(JS API)**」（不是 Web 服务）
+4. 在「**域名白名单**」中添加 v0 预览域名通配，如 `*.vusercontent.net` 与你自己的部署域名（如 `*.vercel.app`、自定义域名）
+5. 保存后等 1-2 分钟全网生效，刷新页面
+
+> 若 Key 创建时勾选了「设置安全密钥(securityJsCode)」，必须与 `NEXT_PUBLIC_AMAP_SECURITY_CODE` 一致；该方案会把 securityJsCode 暴露在浏览器，仅适合**开发环境**。生产环境推荐用代理方案（见下方"生产强化"章节，待补充）。
+
+---
+
 ### 2026-05-02 · 接入真实高德 API（v1.0）
 
 **已完成**：项目已从 mock 模式切换到真实高德 API，可直接使用。

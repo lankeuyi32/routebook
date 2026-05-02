@@ -1,12 +1,29 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
+import { Loader2 } from "lucide-react"
 import { LeftPanel } from "@/components/route-planner/left-panel"
-import { AMapView } from "@/components/route-planner/amap-view"
 import { useRoutePlanner } from "@/hooks/use-route-planner"
 import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner"
 import type { ExportFormat, AmapPOI } from "@/types/route"
+
+// 动态加载真实地图组件，禁用 SSR（@amap/amap-jsapi-loader 依赖浏览器 window）
+const AMapView = dynamic(
+  () => import("@/components/route-planner/amap-view").then((m) => m.AMapView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 flex items-center justify-center bg-muted">
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          正在加载地图…
+        </div>
+      </div>
+    ),
+  },
+)
 
 export default function Page() {
   const planner = useRoutePlanner()
