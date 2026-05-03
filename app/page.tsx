@@ -4,7 +4,9 @@ import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { Loader2 } from "lucide-react"
 import { LeftPanel } from "@/components/route-planner/left-panel"
+import { MobileLayout } from "@/components/route-planner/mobile-layout"
 import { useRoutePlanner } from "@/hooks/use-route-planner"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner"
 import { parseRouteFile } from "@/lib/import-route"
@@ -29,6 +31,7 @@ const AMapView = dynamic(
 export default function Page() {
   const planner = useRoutePlanner()
   const [overviewSignal, setOverviewSignal] = useState(0)
+  const isMobile = useIsMobile()
 
   // 路线规划错误时弹出含修复建议的 toast
   useEffect(() => {
@@ -95,6 +98,49 @@ export default function Page() {
     }
   }
 
+  // 地图节点（桌面 / 移动两种布局共用同一份实例，避免双倍 JS API 加载）
+  const mapNode = (
+    <AMapView
+      waypoints={planner.waypoints}
+      route={planner.route}
+      elevation={planner.elevation}
+      overviewSignal={overviewSignal}
+      onReload={handleReload}
+      onPickPoint={(poi: AmapPOI | null) => {
+        if (poi) {
+          planner.addWaypoint(poi)
+          toast.success("已添加点位", { description: poi.name })
+        }
+      }}
+    />
+  )
+
+  if (isMobile) {
+    return (
+      <>
+        <MobileLayout
+          waypoints={planner.waypoints}
+          route={planner.route}
+          planning={planner.planning}
+          planError={planner.planError}
+          speedLevel={planner.speedLevel}
+          onSpeedChange={planner.setSpeedLevel}
+          onAddPoi={planner.addWaypoint}
+          onRemoveWaypoint={planner.removeWaypoint}
+          onRemoveWaypoints={planner.removeWaypoints}
+          onReorderWaypoints={planner.reorderWaypoints}
+          onPlan={planner.planRoute}
+          onOverview={handleOverview}
+          onClear={planner.clearAll}
+          onImport={handleImport}
+          onExport={handleExport}
+          mapNode={mapNode}
+        />
+        <Toaster position="top-center" />
+      </>
+    )
+  }
+
   return (
     <main className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <LeftPanel
@@ -115,19 +161,7 @@ export default function Page() {
         onExport={handleExport}
       />
 
-      <AMapView
-        waypoints={planner.waypoints}
-        route={planner.route}
-        elevation={planner.elevation}
-        overviewSignal={overviewSignal}
-        onReload={handleReload}
-        onPickPoint={(poi: AmapPOI | null) => {
-          if (poi) {
-            planner.addWaypoint(poi)
-            toast.success("已添加点位", { description: poi.name })
-          }
-        }}
-      />
+      {mapNode}
 
       <Toaster position="top-center" />
     </main>

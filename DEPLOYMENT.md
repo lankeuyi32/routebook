@@ -6,6 +6,32 @@
 
 ## 变更日志
 
+### 2026-05-03 · 移动端专属布局：标题→地图→工作区，滚动时标题渐隐（v1.16）
+
+**需求**：手机端把地图放在「骑行路书制作」标题与「地点搜索」之间，向下滑动时标题渐隐，各模块布局合理且功能不丢失。
+
+**实现**：
+- 新增 `components/route-planner/mobile-layout.tsx`，移动端（< 768px）专用布局；桌面端继续走 `LeftPanel` 不变。
+- `app/page.tsx`：用 `useIsMobile()` 分支渲染。地图节点 `mapNode` 在父级实例化一次，作为 prop 传给 `MobileLayout`，避免桌面/移动各自挂一次 JS API loader。
+- 移动布局结构（`flex flex-col h-screen`，外层不滚动）：
+  1. **顶部标题** — sticky，`max-h-16 → max-h-0` + `opacity-1 → opacity-0` + `-translate-y-1` 200ms 缓动；`scrollTop > 24` 触发隐藏，回滚到顶部恢复。
+  2. **地图区** — `h-[38vh] min-h-[240px] max-h-[420px]`，固定高度避免被工作区挤压；地图自带的 zoom / layer / 拉起导航等控件不受影响。
+  3. **工作区** — `flex-1 min-h-0 overflow-y-auto overscroll-contain` 整体可滚动，标题渐隐由其 `onScroll` 触发：
+     - **地点搜索** sticky 置顶（`sticky top-0 z-20 bg-card`），搜索结果浮层 `absolute top-full` 仍正常铺开
+     - **点位管理** 不限高、不内部滚动，跟随外层滚动（拖拽排序、批量删除、过滤搜索全部正常）
+     - **路线操作 + 路线统计** 紧随其后，默认全部显示
+     - 末尾 `h-14` 留白避免被底部工具栏遮挡
+  4. **底部工具栏** `shrink-0` 粘底，导入/导出按钮一直可达。
+
+**功能保留确认**：
+- 所有按钮、拖拽、批量、过滤、地图交互、拉起导航、定位、图层切换 = 0 改动
+- 桌面端 ≥ 768px 完全不受影响
+- 地图实例**单例**（避免双倍 JSAPI 加载与定位/反查重复请求）
+
+**注意**：`useIsMobile` 客户端 hook，SSR 阶段默认 `false`（桌面优先）；移动设备水合后会切换一次布局，符合 Next.js 默认行为。
+
+---
+
 ### 2026-05-03 · 移动端拉起高德 App 骑行导航（智能分发 + 兜底）（v1.15）
 
 **问题**：之前仅用 `https://uri.amap.com/navigation?mode=ride` 拉起，移动端唤起高德 App 时**骑行模式识别率低**——iOS 几乎无效，Android 部分版本退化为驾车。原因是 `mode=ride` 在 Web URI 协议里对 App 的支持本就不完整。
@@ -318,7 +344,7 @@
 
 **文件变更**：
 - `components/route-planner/amap-view.tsx`：
-  - 类型 `AMapInstance.on` 改为重载形式，分别为 `click` / `hotspotclick` / 通用 `string` 提供精确事件类型。
+  - 类型 `AMapInstance.on` ��为重载形式，分别为 `click` / `hotspotclick` / 通用 `string` 提供精确事件类型。
   - 新增 `AMapInfoWindowInstance` 与 `AMapNS.InfoWindow`。
   - 新增工具函数 `createPoiPopup(opts)` 返回原生 `HTMLElement`，按钮通过 `addEventListener` 绑定，无需依赖全局函数。
   - 新增 `onPickPointRef` 与 `infoWindowRef`。
