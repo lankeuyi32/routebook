@@ -29,7 +29,7 @@ export default function AboutPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">骑行路书制作</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Route Planner · 个人开源项目
+              Route Planner
             </p>
           </div>
         </header>
