@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { Loader2 } from "lucide-react"
 import { LeftPanel } from "@/components/route-planner/left-panel"
@@ -28,6 +28,15 @@ const AMapView = dynamic(
 export default function Page() {
   const planner = useRoutePlanner()
   const [overviewSignal, setOverviewSignal] = useState(0)
+
+  // 路线规划错误时弹出含修复建议的 toast
+  useEffect(() => {
+    if (!planner.planError) return
+    toast.error(planner.planError.message, {
+      description: planner.planError.hint,
+      duration: 8000,
+    })
+  }, [planner.planError])
 
   function handleExport(format: ExportFormat) {
     // 真实导出逻辑应在 services/export.ts 中实现，并基于 planner.route.path 与 planner.elevation 生成文件

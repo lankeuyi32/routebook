@@ -28,8 +28,15 @@ export async function planRoute(waypoints: Waypoint[]): Promise<RoutePlanResult>
     }),
   })
   if (!res.ok) {
-    const data = await res.json().catch(() => null)
-    throw new Error(data?.error ?? `路线规划失败：${res.status}`)
+    const data = (await res.json().catch(() => null)) as
+      | { error?: string; hint?: string; code?: string }
+      | null
+    const err: Error & { hint?: string; code?: string } = new Error(
+      data?.error ?? `路线规划失败：${res.status}`,
+    )
+    if (data?.hint) err.hint = data.hint
+    if (data?.code) err.code = data.code
+    throw err
   }
   const result = (await res.json()) as RoutePlanResult
 

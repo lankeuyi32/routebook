@@ -14,7 +14,11 @@ export function useRoutePlanner() {
   const [route, setRoute] = useState<RoutePlanResult | null>(null)
   const [elevation, setElevation] = useState<ElevationPoint[]>([])
   const [planning, setPlanning] = useState(false)
-  const [planError, setPlanError] = useState<string | null>(null)
+  const [planError, setPlanError] = useState<{
+    message: string
+    hint?: string
+    code?: string
+  } | null>(null)
   const [speedLevel, setSpeedLevel] = useState<SpeedLevel>("regular")
 
   const addWaypoint = useCallback((poi: AmapPOI) => {
@@ -58,7 +62,7 @@ export function useRoutePlanner() {
 
   const planRoute = useCallback(async () => {
     if (waypoints.length < 2) {
-      setPlanError("至少需要两个点位才能规划路线")
+      setPlanError({ message: "至少需要两个点位才能规划路线" })
       return
     }
     setPlanning(true)
@@ -69,8 +73,12 @@ export function useRoutePlanner() {
       const elev = await fetchElevationProfile(result.path)
       setElevation(elev)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "路线规划失败"
-      setPlanError(msg)
+      const err = e as Error & { hint?: string; code?: string }
+      setPlanError({
+        message: err.message || "路线规划失败",
+        hint: err.hint,
+        code: err.code,
+      })
       setRoute(null)
       setElevation([])
     } finally {

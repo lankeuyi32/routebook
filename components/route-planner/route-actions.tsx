@@ -1,7 +1,13 @@
 "use client"
 
-import { Loader2, Maximize2, Trash2, Route as RouteIcon } from "lucide-react"
+import { AlertCircle, Loader2, Maximize2, Trash2, Route as RouteIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+
+interface PlanError {
+  message: string
+  hint?: string
+  code?: string
+}
 
 interface Props {
   canPlan: boolean
@@ -10,7 +16,7 @@ interface Props {
   onPlan: () => void
   onOverview: () => void
   onClear: () => void
-  error?: string | null
+  error?: PlanError | null
 }
 
 export function RouteActions({
@@ -64,8 +70,25 @@ export function RouteActions({
       </div>
 
       {error && (
-        <div className="mt-2 text-[11px] text-destructive bg-destructive/10 rounded px-2 py-1.5">
-          {error}
+        <div className="mt-2.5 rounded-md border border-destructive/30 bg-destructive/8 px-2.5 py-2">
+          <div className="flex items-start gap-1.5">
+            <AlertCircle className="size-3.5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-medium text-destructive leading-snug break-all">
+                {error.message}
+                {error.code && (
+                  <span className="ml-1.5 text-[10px] font-mono text-destructive/70">
+                    · {error.code}
+                  </span>
+                )}
+              </div>
+              {error.hint && (
+                <div className="mt-1 text-[11px] text-destructive/85 leading-relaxed">
+                  {error.hint}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </section>

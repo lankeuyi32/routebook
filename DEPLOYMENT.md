@@ -6,6 +6,41 @@
 
 ## 变更日志
 
+### 2026-05-02 · 路线规划错误诊断 + 高德错误码翻译（v1.5）
+
+**问题**：用户反馈"有时候规划路线时会出现 have no permission 错误"。原实现只把 `errmsg` 透传给前端，用户看不到具体错误码也不知道该怎么修。
+
+**根因**：`have no permission`（高德 errcode `10009 / 10012 / 10024`）几乎都是 **AMAP_WEB_KEY 在高德控制台没勾选「路径规划」服务**。还有以下情况会出错但提示混淆：
+
+| errcode | errmsg | 真实原因 | 修复方法 |
+|---|---|---|---|
+| 10001 | INVALID_USER_KEY | Key 不存在 | 重新创建 |
+| 10003 | DAILY_QUERY_OVER_LIMIT | 个人 5000 次/日额度用完 | 等次日 0 点，或升级配额 |
+| 10004 | ACCESS_TOO_FREQUENT | QPS 超限（个人 50/秒）| 节流后重试 |
+| 10005/10010 | INVALID_USER_IP | IP 白名单限制 | 关闭白名单或加入服务器 IP |
+| **10009** | USERKEY_PLAT_NOMATCH | Key 类型不匹配 | 用「Web 服务」类型 Key（不是 JS API Key） |
+| **10012/10024** | NOT_HAVE_PERMISSION | Key 未开通『路径规划』 | 控制台 → 编辑服务 → 勾选『路径规划』 |
+| 20800 | OUT_OF_SERVICE | 起终点不在骑行服务范围 | 选国内主干道，避免郊区/海外 |
+| 20801 | NO_ROADS_NEARBY | 附近无可骑行道路 | 把点位拖到正规道路上 |
+| 20803 | OVER_DIRECTION_RANGE | 单段距离 > 500km | 拆成多段规划 |
+
+**修复**：
+- `app/api/route/plan/route.ts` 新增 `explainAmapError(code, info)` 把高德错误码翻译成中文 `{ title, hint }`，5xx 时返回 `{ error, hint, code, rawMessage }`，并优先按 `status === "1"` 判定业务成功。
+- `services/route.ts` 把 `hint` / `code` 挂到 `Error` 实例上往外传。
+- `hooks/use-route-planner.ts` 把 `planError` 从 `string` 升级为 `{ message, hint?, code? }`。
+- `components/route-planner/route-actions.tsx` 错误展示改为图标 + 标题 + 修复建议两段式，错误码 monospace 小字显示。
+- `components/route-planner/left-panel.tsx` 同步类型定义。
+- `app/page.tsx` 新增 `useEffect` 监听 `planError`，弹 8 秒 `toast.error({ description: hint })`，让用户在屏幕中央也能看到。
+
+**用户操作流程（出现 NOT_HAVE_PERMISSION 时）**：
+1. 打开 [高德控制台 → 应用管理](https://console.amap.com/dev/key/app)。
+2. 找到对应的 `AMAP_WEB_KEY`（注意不是前端 JS API Key）。
+3. 点「编辑」→ 服务平台勾选 `Web 服务`。
+4. 在服务列表中**勾选『路径规划 V5』和『地理/逆地理编码』**（很多人忘记勾这两个）。
+5. 保存，1-2 分钟生效，刷新页面重试。
+
+---
+
 ### 2026-05-02 · 底图原生 POI 一键加入路线（v1.4）
 
 **能力**：

@@ -9,11 +9,17 @@ import { RouteStats } from "./route-stats"
 import { BottomToolbar } from "./bottom-toolbar"
 import type { AmapPOI, ExportFormat, RoutePlanResult, SpeedLevel, Waypoint } from "@/types/route"
 
+interface PlanError {
+  message: string
+  hint?: string
+  code?: string
+}
+
 interface Props {
   waypoints: Waypoint[]
   route: RoutePlanResult | null
   planning: boolean
-  planError: string | null
+  planError: PlanError | null
   speedLevel: SpeedLevel
   onSpeedChange: (l: SpeedLevel) => void
   onAddPoi: (poi: AmapPOI) => void
