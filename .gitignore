@@ -14,3 +14,18 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
+
+# TypeScript / build cache
+*.tsbuildinfo
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
