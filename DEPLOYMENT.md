@@ -6,6 +6,28 @@
 
 ## 变更日志
 
+### 2026-05-03 · 网站归属证明：作者元数据 / 页脚 / 关于页 / humans.txt / security.txt（v1.19）
+
+**目的**：为这个网站提供清晰的作者归属证明，便于版权申诉、SEO 收录、安全反馈等多场景。统一署名 `Lanc Aer`（GitHub `lankeuyi32`，邮箱 `lankeuyi32@gmail.com`）。
+
+**新增/修改**：
+- `app/layout.tsx` — `metadata` 扩展：`authors`、`creator`、`publisher`、`applicationName`、`keywords`、`openGraph`（site_name / locale / type）、`twitter`（card / creator）、`other.copyright` 自动按当前年份生成。
+- `components/route-planner/site-footer.tsx`（新建）— 全站统一页脚组件，含版权 / 关于链接 / GitHub 外链。已接入桌面 `LeftPanel` 与移动 `MobileLayout` 底部。
+- `app/about/page.tsx`（新建）— `/about` 关于页：项目介绍、作者卡片（GitHub + 邮箱）、安全反馈引导（链接 `security.txt`）、MIT 协议声明，具备独立 `metadata`。
+- `public/humans.txt`（新建）— 程序员圈通行的"作者名片"文件（TEAM / SITE / THANKS 三段式）。
+- `public/.well-known/security.txt`（新建）— 遵循 [RFC 9116](https://datatracker.ietf.org/doc/html/rfc9116)，含 `Contact` / `Preferred-Languages` / `Canonical`。
+- `LICENSE`（新建）— MIT 协议，署名 `Copyright (c) 2026 Lanc Aer`。
+
+**用户路径**：
+- 任何页面底部 → 「关于」按钮 → `/about` 看到完整作者信息
+- 直接访问 `/humans.txt` → 程序员名片
+- 直接访问 `/.well-known/security.txt` → 安全反馈渠道
+- 浏览器 View Source → 看到 `<meta name="author" content="Lanc Aer">` 等元数据
+
+**注意**：所有引用的真实信息仅为公开 GitHub 用户名与对应邮箱，未泄漏其他隐私。`humans.txt` 中邮箱用 `[at]` 替代 `@` 简单防爬。
+
+---
+
 ### 2026-05-03 · 代码审阅 — 修复闭包陷阱 / 视野跳变 / 死代码等（v1.18）
 
 系统性审阅后发现并修复一组用户操作逻辑与代码问题：
@@ -223,7 +245,7 @@
   - **standard** → `amap://styles/normal`（默认配色）
   - **satellite** → `normal` 底图 + `Satellite` 卫星瓦片 + `RoadNet` 路网
   - **terrain** → `amap://styles/whitesmoke`（雅黑灰，突出地势线条）
-  - **cycling** → `amap://styles/fresh`（**清新蓝绿底图**，与标准模式有显著色差）+ `Traffic` 图层（`zIndex:10`，`autoRefresh:true`，`interval:180`）
+  - **cycling** → `amap://styles/fresh`��**清新蓝绿底图**，与标准模式有显著色差）+ `Traffic` 图层（`zIndex:10`，`autoRefresh:true`，`interval:180`）
   - 增加 `console.log("[v0] map layer =>", layer)` 便于切换时验证。
 - 新增「骑行模式」专用**路况图例角标**（地图右上方图层切换器下方）：绿/黄/红三色圆点 + 「畅通 / 缓行 / 拥堵」文字，让用户一眼识别 Traffic 颜色含义。
 
@@ -316,7 +338,7 @@
 
 ### 2026-05-02 · 搜索结果改为浮层，解决与点位管理的空间冲突（v1.6）
 
-**问题**：在 v1.3 的"五段式 flex 布局"下，地点搜索结果（`max-h-[32vh]`）和路线操作区（`max-h-[38vh]`）共占了 70% 视口，导致中间「点位管理」被挤压到只能显示 1-2 条点位，体验非常差。两个搜索框（搜索 + 列表过滤）也容易让用户混淆。
+**问题**：在 v1.3 的"五��式 flex 布局"下，地点搜索结果（`max-h-[32vh]`）和路线操作区（`max-h-[38vh]`）共占了 70% 视口，导致中间「点位管理」被挤压到只能显示 1-2 条点位，体验非常差。两个搜索框（搜索 + 列表过滤）也容易让用户混淆。
 
 **修复**：把搜索结果改成 **绝对定位浮层**，覆盖在点位管理之上，不再占据流���空间。
 

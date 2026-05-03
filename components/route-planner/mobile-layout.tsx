@@ -7,6 +7,7 @@ import { WaypointList } from "./waypoint-list"
 import { RouteActions } from "./route-actions"
 import { RouteStats } from "./route-stats"
 import { BottomToolbar } from "./bottom-toolbar"
+import { SiteFooter } from "./site-footer"
 import { cn } from "@/lib/utils"
 import type {
   AmapPOI,
@@ -139,6 +140,9 @@ export function MobileLayout(props: Props) {
           onExport={props.onExport}
         />
       </div>
+
+      {/* 全站页脚（版权 / 关于 / GitHub） */}
+      <SiteFooter />
     </div>
   )
 }

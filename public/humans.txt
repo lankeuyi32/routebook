@@ -1,0 +1,20 @@
+/* TEAM */
+
+  Author:   Lanc Aer
+  Site:     https://github.com/lankeuyi32
+  Contact:  lankeuyi32 [at] gmail.com
+  GitHub:   @lankeuyi32
+  From:     China
+
+/* SITE */
+
+  Name:     骑行路书制作 · Route Planner
+  Tagline:  点位管理 · 路线规划 · 文件导出
+  Language: 中文 (zh-CN)
+  Doctype:  HTML5
+  IDE:      v0.app
+
+/* THANKS */
+
+  高德开放平台 (lbs.amap.com) — 地图与路径规划服务
+  Next.js, React, TypeScript, Tailwind CSS, shadcn/ui

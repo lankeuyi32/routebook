@@ -1,0 +1,7 @@
+# Security contact for "骑行路书制作 · Route Planner"
+# https://datatracker.ietf.org/doc/html/rfc9116
+
+Contact: mailto:lankeuyi32@gmail.com
+Contact: https://github.com/lankeuyi32
+Preferred-Languages: zh-CN, en
+Canonical: /.well-known/security.txt
