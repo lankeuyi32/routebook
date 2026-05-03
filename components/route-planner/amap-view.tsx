@@ -450,7 +450,7 @@ export function AMapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jsKey, securityCode])
 
-  // 同步图层
+  // 同步图层 —— 每个模式选用视觉差异明显的高德官方 mapStyle，避免肉眼混淆
   useEffect(() => {
     const map = mapRef.current
     const AMap = amapNsRef.current
@@ -462,9 +462,13 @@ export function AMapView({
     }
     layerCacheRef.current = {}
 
+    console.log("[v0] map layer =>", layer)
+
     if (layer === "standard") {
+      // 标准：默认配色
       map.setMapStyle("amap://styles/normal")
     } else if (layer === "satellite") {
+      // 卫星：底图切回 normal（避免样式干扰瓦片），叠加 Satellite + RoadNet
       map.setMapStyle("amap://styles/normal")
       const sat = new AMap.TileLayer.Satellite()
       const road = new AMap.TileLayer.RoadNet()
@@ -472,12 +476,16 @@ export function AMapView({
       layerCacheRef.current.sat = sat
       layerCacheRef.current.road = road
     } else if (layer === "terrain") {
-      // 地形：使用更柔和的样式
+      // 地形：低饱和度灰白，突出地势线条
       map.setMapStyle("amap://styles/whitesmoke")
     } else if (layer === "cycling") {
-      // 骑行：标准样式 + 实时路况
-      map.setMapStyle("amap://styles/normal")
-      const traffic = new AMap.TileLayer.Traffic({ autoRefresh: true, interval: 180 })
+      // 骑行：清新蓝绿底图（fresh）+ 实时路况图层，护眼并能看到拥堵路段
+      map.setMapStyle("amap://styles/fresh")
+      const traffic = new AMap.TileLayer.Traffic({
+        autoRefresh: true,
+        interval: 180,
+        zIndex: 10,
+      })
       map.add(traffic)
       layerCacheRef.current.traffic = traffic
     }
@@ -745,6 +753,25 @@ export function AMapView({
 
       {/* 顶部右侧图层切换 */}
       <MapTopToolbar layer={layer} onLayerChange={setLayer} />
+
+      {/* 骑行模式：路况图例（绿畅 / 黄缓 / 红堵） */}
+      {status === "ready" && layer === "cycling" && (
+        <div className="absolute top-14 right-3 z-10 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-2.5">
+          <span className="text-[11px] text-muted-foreground font-medium">路况</span>
+          <div className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-emerald-500" />
+            <span className="text-[11px] text-foreground">畅通</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-amber-500" />
+            <span className="text-[11px] text-foreground">缓行</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-red-500" />
+            <span className="text-[11px] text-foreground">拥堵</span>
+          </div>
+        </div>
+      )}
 
       {/* ���侧缩放控件 */}
       <MapZoomControls
