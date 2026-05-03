@@ -41,6 +41,31 @@ declare global {
   }
 }
 
+/** 地图 click 事件 */
+interface AMapClickEvent {
+  lnglat: { lng: number; lat: number }
+  pixel: { x: number; y: number }
+  type: string
+  target?: unknown
+}
+
+/** 地图 hotspotclick 事件（点击底图自带 POI 标签时触发） */
+interface AMapHotspotEvent {
+  lnglat: { lng: number; lat: number; getLng?: () => number; getLat?: () => number }
+  /** 高德 POI ID */
+  id: string
+  /** POI 名称 */
+  name: string
+  type?: string
+}
+
+interface AMapInfoWindowInstance {
+  open: (map: AMapInstance, position: [number, number]) => void
+  close: () => void
+  setContent: (content: string | HTMLElement) => void
+  setPosition: (position: [number, number]) => void
+}
+
 interface AMapInstance {
   setFitView: (
     overlays?: unknown[] | null,
@@ -54,7 +79,9 @@ interface AMapInstance {
   add: (overlay: unknown | unknown[]) => void
   remove: (overlay: unknown | unknown[]) => void
   destroy: () => void
-  on: (event: string, fn: (e: { lnglat: { lng: number; lat: number } }) => void) => void
+  on(event: "click", fn: (e: AMapClickEvent) => void): void
+  on(event: "hotspotclick", fn: (e: AMapHotspotEvent) => void): void
+  on(event: string, fn: (e: unknown) => void): void
   off: (event: string, fn: unknown) => void
 }
 
@@ -62,6 +89,7 @@ interface AMapNS {
   Map: new (container: HTMLElement, opts: Record<string, unknown>) => AMapInstance
   Marker: new (opts: Record<string, unknown>) => unknown
   Polyline: new (opts: Record<string, unknown>) => unknown
+  InfoWindow: new (opts: Record<string, unknown>) => AMapInfoWindowInstance
   TileLayer: {
     new (opts?: Record<string, unknown>): unknown
     Satellite: new () => unknown
@@ -136,6 +164,76 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;")
 }
 
+/** 构建底图 POI 信息弹窗（点击后可一键加入路线） */
+function createPoiPopup(opts: {
+  name: string
+  address: string
+  cityname?: string
+  adname?: string
+  lng: number
+  lat: number
+  onAdd: () => void
+}): HTMLElement {
+  const { name, address, cityname, adname, lng, lat, onAdd } = opts
+  const wrap = document.createElement("div")
+  wrap.style.cssText = `
+    background:#fff;
+    border-radius:8px;
+    box-shadow:0 8px 24px rgba(15,23,42,.16);
+    border:1px solid rgba(15,23,42,.06);
+    padding:12px 12px 10px;
+    min-width:220px;
+    max-width:280px;
+    font-family:system-ui,-apple-system,'PingFang SC';
+  `
+  const region = [cityname, adname].filter(Boolean).join(" · ")
+  wrap.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:4px;">
+      ${escapeHtml(name)}
+    </div>
+    ${
+      region
+        ? `<div style="font-size:11px;color:#64748b;margin-bottom:4px;">${escapeHtml(region)}</div>`
+        : ""
+    }
+    <div style="font-size:11px;color:#64748b;line-height:1.45;margin-bottom:6px;word-break:break-all;">
+      ${escapeHtml(address)}
+    </div>
+    <div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace;margin-bottom:8px;">
+      ${lng.toFixed(5)}, ${lat.toFixed(5)}
+    </div>
+    <button
+      data-add-btn
+      style="
+        width:100%;
+        background:#2563eb;
+        color:#fff;
+        border:none;
+        border-radius:6px;
+        padding:6px 10px;
+        font-size:12px;
+        font-weight:500;
+        cursor:pointer;
+        font-family:inherit;
+      "
+    >+ 添加到路线</button>
+  `
+  const btn = wrap.querySelector<HTMLButtonElement>("[data-add-btn]")
+  if (btn) {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation()
+      onAdd()
+    })
+    btn.addEventListener("mouseenter", () => {
+      btn.style.background = "#1d4ed8"
+    })
+    btn.addEventListener("mouseleave", () => {
+      btn.style.background = "#2563eb"
+    })
+  }
+  return wrap
+}
+
 export function AMapView({
   waypoints,
   route,
@@ -150,6 +248,12 @@ export function AMapView({
   const polylineRef = useRef<unknown | null>(null)
   const layerCacheRef = useRef<Record<string, unknown>>({})
   const pickModeRef = useRef(false)
+  const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
+  // onPickPoint 用 ref 避免重新初始化地图
+  const onPickPointRef = useRef(onPickPoint)
+  useEffect(() => {
+    onPickPointRef.current = onPickPoint
+  }, [onPickPoint])
 
   const [layer, setLayer] = useState<MapLayer>("standard")
   const [pickMode, setPickMode] = useState(false)
@@ -207,16 +311,92 @@ export function AMapView({
           viewMode: "2D",
           mapStyle: "amap://styles/normal",
           resizeEnable: true,
+          // 开启底图 POI（默认开启），并允许点击热点
+          showLabel: true,
+          isHotspot: true,
         })
         mapRef.current = map
 
-        // 地图点击 -> 反查 POI 并回调
+        // 1) 地图空白区域点击 -> 仅在"地图选点"模式下反查并加点
         map.on("click", async (e) => {
           if (!pickModeRef.current) return
           const { lng, lat } = e.lnglat
           const poi = await reverseGeocode(lng, lat)
-          if (poi && onPickPoint) onPickPoint(poi)
+          if (poi && onPickPointRef.current) onPickPointRef.current(poi)
           setPickMode(false)
+        })
+
+        // 2) 点击底图原生 POI 标签（公园/学校/建筑等）-> 弹出 InfoWindow
+        const infoWindow = new AMap.InfoWindow({
+          isCustom: true,
+          autoMove: true,
+          offset: [0, -8],
+          content: createPoiPopup({
+            name: "",
+            address: "",
+            lng: 0,
+            lat: 0,
+            onAdd: () => {},
+          }),
+        })
+        infoWindowRef.current = infoWindow
+
+        map.on("hotspotclick", async (e) => {
+          const lng = typeof e.lnglat.getLng === "function" ? e.lnglat.getLng() : e.lnglat.lng
+          const lat = typeof e.lnglat.getLat === "function" ? e.lnglat.getLat() : e.lnglat.lat
+          console.log("[v0] hotspotclick:", e.name, e.id, lng, lat)
+
+          // 先用 hotspot 自带的 name 和 lnglat 立即弹窗，然后异步补充地址
+          const handleAdd = () => {
+            const fullPoi = {
+              id: e.id,
+              name: e.name,
+              address: addressBuf,
+              location: `${lng},${lat}`,
+              lngLat: [lng, lat] as LngLat,
+            }
+            onPickPointRef.current?.(fullPoi)
+            infoWindow.close()
+          }
+          let addressBuf = "加载中…"
+          infoWindow.setContent(
+            createPoiPopup({
+              name: e.name,
+              address: addressBuf,
+              lng,
+              lat,
+              onAdd: handleAdd,
+            }),
+          )
+          infoWindow.open(map, [lng, lat])
+
+          // 反查地址
+          const detail = await reverseGeocode(lng, lat)
+          if (detail) {
+            addressBuf = detail.address || `${lng.toFixed(5)}, ${lat.toFixed(5)}`
+            infoWindow.setContent(
+              createPoiPopup({
+                name: e.name,
+                address: addressBuf,
+                cityname: detail.cityname,
+                adname: detail.adname,
+                lng,
+                lat,
+                onAdd: handleAdd,
+              }),
+            )
+          } else {
+            addressBuf = `${lng.toFixed(5)}, ${lat.toFixed(5)}`
+            infoWindow.setContent(
+              createPoiPopup({
+                name: e.name,
+                address: addressBuf,
+                lng,
+                lat,
+                onAdd: handleAdd,
+              }),
+            )
+          }
         })
 
         setStatus("ready")
@@ -462,7 +642,7 @@ export function AMapView({
       {/* 顶部右侧图层切换 */}
       <MapTopToolbar layer={layer} onLayerChange={setLayer} />
 
-      {/* 右侧缩放控件 */}
+      {/* ���侧缩放控件 */}
       <MapZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onLocate={handleReset} />
 
       {/* 海拔剖面 */}

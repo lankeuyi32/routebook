@@ -6,6 +6,29 @@
 
 ## 变更日志
 
+### 2026-05-02 · 底图原生 POI 一键加入路线（v1.4）
+
+**能力**：
+- 直接点击高德底图自带的 POI 标签（公园、学校、地铁站、景区、商场、建筑等）即可弹出信息卡，一键加入路线。
+- 信息卡内容：POI 名称（来自 `hotspotclick` 事件）+ 城市/区县 + 详细地址（异步反查）+ 经纬度 + 「+ 添加到路线」按钮。
+- 不影响原有"地图选点"模式：空白区域点击仍走 `click` 事件，只在选点模式生效。
+
+**实现要点**：
+- 高德 JS API v2 提供 `map.on("hotspotclick", ...)` 事件，事件对象包含 `name` / `id` / `lnglat`。
+- `new AMap.Map(...)` 选项加 `isHotspot: true` + `showLabel: true` 启用底图热点交互。
+- `new AMap.InfoWindow({ isCustom: true })` 用纯 DOM 自定义弹窗（包含 hover 状态的按钮），避免高德默认气泡的样式包袱。
+- 第一帧立刻用 hotspot 自带的 `name + lnglat` 渲染弹窗（地址显示「加载中…」），同时调用 `/api/amap/regeo` 异步补全地址，`infoWindow.setContent()` 局部刷新；用户感知零延迟。
+- `onPickPoint` 用 ref 持有，避免重新初始化地图（`mapRef` 仅初始化一次，依赖只跟 jsKey/securityCode 有关）。
+
+**文件变更**：
+- `components/route-planner/amap-view.tsx`：
+  - 类型 `AMapInstance.on` 改为重载形式，分别为 `click` / `hotspotclick` / 通用 `string` 提供精确事件类型。
+  - 新增 `AMapInfoWindowInstance` 与 `AMapNS.InfoWindow`。
+  - 新增工具函数 `createPoiPopup(opts)` 返回原生 `HTMLElement`，按钮通过 `addEventListener` 绑定，无需依赖全局函数。
+  - 新增 `onPickPointRef` 与 `infoWindowRef`。
+
+---
+
 ### 2026-05-02 · 左侧面板响应式布局 + 双重过滤搜索（v1.3）
 
 **问题**：
