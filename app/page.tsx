@@ -70,6 +70,31 @@ export default function Page() {
     setOverviewSignal((s) => s + 1)
   }
 
+  /**
+   * 「重载」按钮：智能行为
+   * - ≥2 个点位：重新发起骑行路线规划（最常见诉求：改了点位顺序/数量后一键重算）
+   * - 不足 2 点：toast 提示，并触发地图全览作为兜底视觉反馈
+   */
+  async function handleReload() {
+    if (planner.planning) {
+      toast.info("正在规划路线…")
+      return
+    }
+    if (planner.waypoints.length < 2) {
+      toast.error("至少需要两个点位才能重新规划路线")
+      setOverviewSignal((s) => s + 1)
+      return
+    }
+    const tid = toast.loading("正在重新规划路线…")
+    await planner.planRoute()
+    // planRoute 内部会通过 planError useEffect 自动弹错；成功时这里更新 toast
+    if (!planner.planError) {
+      toast.success("路线已重新规划", { id: tid })
+    } else {
+      toast.dismiss(tid)
+    }
+  }
+
   return (
     <main className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <LeftPanel
@@ -95,6 +120,7 @@ export default function Page() {
         route={planner.route}
         elevation={planner.elevation}
         overviewSignal={overviewSignal}
+        onReload={handleReload}
         onPickPoint={(poi: AmapPOI | null) => {
           if (poi) {
             planner.addWaypoint(poi)

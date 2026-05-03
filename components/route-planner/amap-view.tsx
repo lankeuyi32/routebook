@@ -33,6 +33,8 @@ interface Props {
   overviewSignal?: number
   /** 地图点选添加点位 */
   onPickPoint?: (poi: Awaited<ReturnType<typeof reverseGeocode>>) => void
+  /** 「重载」按钮回调，由父组件接路线重新规划逻辑；未传时回退到地图全览 */
+  onReload?: () => void
 }
 
 declare global {
@@ -258,6 +260,7 @@ export function AMapView({
   elevation,
   overviewSignal,
   onPickPoint,
+  onReload,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<AMapInstance | null>(null)
@@ -687,8 +690,15 @@ export function AMapView({
     }
   }
 
-  /** 重载：把地图视野重置到当前路线全览 */
+  /**
+   * 重载：优先调用外部 onReload（重新规划路线），未传时回退到地图全览
+   * 这样无论是否在规划过程中按钮都有可见效果，避免「看上去没反应」
+   */
   function handleReload() {
+    if (onReload) {
+      onReload()
+      return
+    }
     const overlays: unknown[] = [...markersRef.current]
     if (polylineRef.current) overlays.push(polylineRef.current)
     if (overlays.length === 0) {
@@ -696,6 +706,7 @@ export function AMapView({
       return
     }
     mapRef.current?.setFitView(overlays, false, [80, 80, 200, 80], 16)
+    toast.message("视野已重置")
   }
 
   /**
@@ -903,7 +914,7 @@ export function AMapView({
         </div>
       )}
 
-      {/* ���侧缩放控件 */}
+      {/* �����侧缩放控件 */}
       <MapZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}

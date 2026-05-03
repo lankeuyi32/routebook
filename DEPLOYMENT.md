@@ -6,6 +6,26 @@
 
 ## 变更日志
 
+### 2026-05-03 · 「重载」改为重新规划路线（v1.14）
+
+**问题**：v1.13 把「重载」实现成 `setFitView`(地图全览)，但地图通常已经处于全览状态，点击按钮**视野不变 = 看上去没反应**。
+
+**修复**：把「重载」语义升级为更有意义的「**重新发起路线规划**」（用户改了点位顺序、上次规划失败重试等都是高频诉求），并保留地图全览作为兜底。
+
+- `components/route-planner/amap-view.tsx`：
+  - `Props` 新增 `onReload?: () => void`，由父组件接路线重新规划逻辑。
+  - `handleReload()` 优先调用 `onReload`，未传时才走原来的 `setFitView` 全览（并加 `toast.message("视野已重置")` 让按钮总是有可见反馈）。
+- `app/page.tsx`：
+  - 新增 `handleReload()`：
+    - 正在规划中 → toast 提示，避免重复触发。
+    - 点位 < 2 → toast 报错 + 触发地图全览作为兜底反馈。
+    - 否则 `await planner.planRoute()` + `toast.loading → success/error` 全流程反馈。
+  - `<AMapView />` 新增 `onReload={handleReload}` prop。
+
+**用户体验**：点击「重载」按钮无论何种状态都有明确视觉反馈（loading toast → 成功/失败 toast / 视野动画）。重新规划成功时地图会自动 fit view 到新路线，直观可见。
+
+---
+
 ### 2026-05-03 · 修复「拉起导航」与「重载」按钮无响应（v1.13）
 
 **问题**：地图右上角的「拉起导航」蓝色按钮和「重载」按钮点击没反应。
@@ -98,7 +118,7 @@
 
 **现象**：右上角图层切换器选择「骑行」后，地图与「标准」模式视觉完全相同，看不出有任何区别。
 
-**根因**：原实现 `cycling` 分支用了 `amap://styles/normal`（与 `standard` 完全一样的底图样式）+ `AMap.TileLayer.Traffic` 实时路况图层。Traffic 在小缩放级别下几乎不可见，加上底图样式相同，所以视觉上完全无差别。
+**根因**：原实现 `cycling` 分支用了 `amap://styles/normal`（与 `standard` 完全一样的底图样式）+ `AMap.TileLayer.Traffic` 实时路况图层。Traffic 在小缩放级别下几乎不可见，加上底图样式相同，所以视觉��完全无差别。
 
 **修复**：每个模式选用视觉差异明显的高德官方样式，并加显式图例。
 
@@ -225,7 +245,7 @@
 
 **问题**：用户反馈"有时候规划路线时会出现 have no permission 错误"。原实现只把 `errmsg` 透传给前端，用户看不到具体错误码也不知道该怎么修。
 
-**根因**：`have no permission`（高德 errcode `10009 / 10012 / 10024`）几乎都是 **AMAP_WEB_KEY 在高德控制台没勾选「路径规划」服务**。还有以下情况会出错但提示混淆：
+**根因**：`have no permission`（高德 errcode `10009 / 10012 / 10024`）几乎都是 **AMAP_WEB_KEY 在高德控制台没勾选「路径规划」服务**。还有以下情���会出错但提示混淆：
 
 | errcode | errmsg | 真实原因 | 修复方法 |
 |---|---|---|---|
