@@ -641,6 +641,64 @@ export function AMapView({
   }
 
   /**
+   * 拉起高德导航（骑行模式）
+   * - 桌面：在新标签打开高德 Web 导航页
+   * - 移动端：尝试通过 callnative=1 唤起高德 App，未安装则回落到 Web 版
+   * - 注意：高德 URI API 的骑行模式（mode=ride）官方不支持途经点参数，
+   *   多点路线只能取「起→终」两端。
+   */
+  function handleLaunchNav() {
+    if (waypoints.length < 2) {
+      toast.error("至少需要两个点位才能拉起导航")
+      return
+    }
+
+    const start = waypoints[0]
+    const end = waypoints[waypoints.length - 1]
+    const fromName = encodeURIComponent(start.poi.name || "起点")
+    const toName = encodeURIComponent(end.poi.name || "终点")
+    const [fromLng, fromLat] = start.poi.lngLat
+    const [toLng, toLat] = end.poi.lngLat
+
+    const params = new URLSearchParams({
+      from: `${fromLng},${fromLat},${decodeURIComponent(fromName)}`,
+      to: `${toLng},${toLat},${decodeURIComponent(toName)}`,
+      mode: "ride",
+      src: "route-planner",
+      coordinate: "gaode",
+      callnative: "1",
+    })
+    const url = `https://uri.amap.com/navigation?${params.toString()}`
+
+    console.log("[v0] launch nav:", url)
+    const win = window.open(url, "_blank", "noopener,noreferrer")
+    if (!win) {
+      toast.error("无法打开导航页", { description: "请检查浏览器是否拦截了弹出窗口" })
+      return
+    }
+
+    if (waypoints.length > 2) {
+      toast.message("已在新标签打开高德骑行导航", {
+        description: `当前 ${waypoints.length} 个点位；高德骑行导航不支持途经点，仅使用起点与终点`,
+        duration: 6000,
+      })
+    } else {
+      toast.success("已在新标签打开高德骑行导航")
+    }
+  }
+
+  /** 重载：把地图视野重置到当前路线全览 */
+  function handleReload() {
+    const overlays: unknown[] = [...markersRef.current]
+    if (polylineRef.current) overlays.push(polylineRef.current)
+    if (overlays.length === 0) {
+      toast.message("当前没有点位")
+      return
+    }
+    mapRef.current?.setFitView(overlays, false, [80, 80, 200, 80], 16)
+  }
+
+  /**
    * 定位到用户当前 GPS 位置
    * - 浏览器 Geolocation 拿到的是 WGS84，需要走 AMap.convertFrom 转 GCJ02 才能在高德地图上对齐
    * - 失败时 toast 提示原因（拒绝授权 / 不可用 / 超时）
@@ -696,7 +754,7 @@ export function AMapView({
               const { lng, lat } = result.locations[0]
               applyOnMap(lng, lat)
             } else {
-              // 转换失败兜底：直接用原始坐标（误差几十米到几百米）
+              // 转换失败兜底��直接用原始坐标（误差几十米到几百米）
               console.warn("[v0] convertFrom 失败，使用原始 WGS84 坐标:", result)
               applyOnMap(wgsLng, wgsLat)
             }
@@ -819,7 +877,12 @@ export function AMapView({
       )}
 
       {/* 顶部右侧图层切换 */}
-      <MapTopToolbar layer={layer} onLayerChange={setLayer} />
+      <MapTopToolbar
+        layer={layer}
+        onLayerChange={setLayer}
+        onLaunchNav={handleLaunchNav}
+        onReload={handleReload}
+      />
 
       {/* 骑行模式：路况图例（绿畅 / 黄缓 / 红堵） */}
       {status === "ready" && layer === "cycling" && (

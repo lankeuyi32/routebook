@@ -6,6 +6,29 @@
 
 ## 变更日志
 
+### 2026-05-03 · 修复「拉起导航」与「重载」按钮无响应（v1.13）
+
+**问题**：地图右上角的「拉起导航」蓝色按钮和「重载」按钮点击没反应。
+
+**根因**：`<MapTopToolbar layer={layer} onLayerChange={setLayer} />` 调用时只传了 `layer` / `onLayerChange` 两个 prop，而 `MapTopToolbar` 内部的拉起导航 / 重载按钮分别绑定到 `onLaunchNav` / `onReload`，未传时 `onClick={undefined}` 自然没反应。这俩回调一直是占位空槽位，对应的处理函数从来没在 `AMapView` 里实现过。
+
+**修复**：在 `components/route-planner/amap-view.tsx` 内实现并传入两个回调。
+
+- **`handleLaunchNav()`** —— 拉起高德骑行导航
+  - 校验：至少 2 个点位才能拉起，否则 `toast.error`。
+  - 拼接高德 URI API：`https://uri.amap.com/navigation?from={lng,lat,name}&to={lng,lat,name}&mode=ride&coordinate=gaode&callnative=1&src=route-planner`。
+  - `window.open(url, "_blank")` 在新标签打开（移动端 `callnative=1` 会优先唤起高德 App，未安装回落 Web 版）。
+  - 弹窗被拦截时 toast 报错。
+  - **限制说明**：高德 URI API 的骑行模式（`mode=ride`）官方不支持途经点参数，多点路线只能取「起→终」两端；当 `waypoints.length > 2` 时会 toast 提示用户该限制。
+- **`handleReload()`** —— 重载（地图视野重置到全览）
+  - 复用现有 `setFitView(markers + polyline, false, [80, 80, 200, 80], 16)`。
+  - 没有点位时 toast 提示。
+- `<MapTopToolbar>` 调用补传 `onLaunchNav={handleLaunchNav}` 与 `onReload={handleReload}`。
+
+**注意**：高德官方对 URI API 中的中文地名做 URL 编码，且要求 `coordinate=gaode`（GCJ02）；我们路线里的点都是 GCJ02，无需再转。
+
+---
+
 ### 2026-05-03 · 导入功能改为本地文件解析（v1.12）
 
 **变更**：之前的「导入」按钮只是 toast 占位，预期接入后端文件存储。本次取消后端接入，改为**纯前端**解析本地文件，不上传到任何服务器。
