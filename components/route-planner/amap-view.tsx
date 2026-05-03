@@ -267,6 +267,8 @@ export function AMapView({
   const layerCacheRef = useRef<Record<string, unknown>>({})
   const pickModeRef = useRef(false)
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
+  // hotspotclick 触发时间戳，用于在 250ms 内去重 click 事件
+  const lastHotspotTsRef = useRef(0)
   // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
   const userLocationMarkerRef = useRef<unknown | null>(null)
   const [locating, setLocating] = useState(false)
@@ -338,13 +340,77 @@ export function AMapView({
         })
         mapRef.current = map
 
-        // 1) 地图空白区域点击 -> 仅在"地图选点"模式下反查并加点
+        // 1) 地图任意位置点击
+        //    - "地图选点"模式：直接反查并加点（一键多点高效模式）
+        //    - 普通模式：弹出信息卡，用户确认后再加入路线（与点击底图 POI 行为一致）
+        //    注意：点击底图 POI 标签时高德会同时触发 click 和 hotspotclick，
+        //    用 lastHotspotTsRef 在 250ms 内去重，避免开两个弹窗
         map.on("click", async (e) => {
-          if (!pickModeRef.current) return
+          // 250ms 内刚刚处理过 hotspotclick，跳过避免重复弹窗
+          if (Date.now() - lastHotspotTsRef.current < 250) return
+
           const { lng, lat } = e.lnglat
-          const poi = await reverseGeocode(lng, lat)
-          if (poi && onPickPointRef.current) onPickPointRef.current(poi)
-          setPickMode(false)
+
+          // 模式 A：选点模式 -> 直接加点，不弹卡
+          if (pickModeRef.current) {
+            const poi = await reverseGeocode(lng, lat)
+            if (poi && onPickPointRef.current) onPickPointRef.current(poi)
+            setPickMode(false)
+            return
+          }
+
+          // 模式 B：普通模式 -> 弹卡确认
+          const fallbackAddress = `${lng.toFixed(5)}, ${lat.toFixed(5)}`
+          let name = "地图点选位置"
+          let address = fallbackAddress
+          let cityname: string | undefined
+          let adname: string | undefined
+
+          const handleAdd = () => {
+            onPickPointRef.current?.({
+              id: `MAP_${lng},${lat}`,
+              name,
+              address,
+              location: `${lng},${lat}`,
+              lngLat: [lng, lat] as LngLat,
+              cityname,
+              adname,
+            })
+            infoWindowRef.current?.close()
+          }
+
+          // 第一帧 loading
+          infoWindowRef.current?.setContent(
+            createPoiPopup({
+              name: "正在解析位置…",
+              address: "正在解析地址…",
+              lng,
+              lat,
+              loading: true,
+              onAdd: handleAdd,
+            }),
+          )
+          infoWindowRef.current?.open(map, [lng, lat])
+
+          const detail = await reverseGeocode(lng, lat)
+          if (detail) {
+            name = detail.name || name
+            address = detail.address || fallbackAddress
+            cityname = detail.cityname
+            adname = detail.adname
+          }
+          infoWindowRef.current?.setContent(
+            createPoiPopup({
+              name,
+              address,
+              cityname,
+              adname,
+              lng,
+              lat,
+              loading: false,
+              onAdd: handleAdd,
+            }),
+          )
         })
 
         // 2) 点击底图原生 POI 标签（公园/学校/建筑等）-> 弹出 InfoWindow
@@ -363,6 +429,7 @@ export function AMapView({
         infoWindowRef.current = infoWindow
 
         map.on("hotspotclick", async (e) => {
+          lastHotspotTsRef.current = Date.now()
           const lng = typeof e.lnglat.getLng === "function" ? e.lnglat.getLng() : e.lnglat.lng
           const lat = typeof e.lnglat.getLat === "function" ? e.lnglat.getLat() : e.lnglat.lat
           console.log("[v0] hotspotclick:", e.name, e.id, lng, lat)
