@@ -61,14 +61,14 @@ export function LeftPanel(props: Props) {
         </div>
       </header>
 
-      {/* 地点搜索（输入框固定，结果列表自身滚动） */}
-      <div className="shrink-0">
+      {/* 地点搜索（输入框紧凑固定，结果以浮层形式叠加在下方区域上） */}
+      <div className="shrink-0 relative z-20">
         <SearchSection onSelect={props.onAddPoi} addedIds={addedIds} />
       </div>
 
-      {/* 点位管理（弹性高度，内部独立滚动 + 过滤） */}
+      {/* 点位管理（弹性高度，最少 200px 保证 3-4 条可见，内部独立滚动） */}
       <WaypointList
-        className="flex-1 min-h-0"
+        className="flex-1 min-h-[200px]"
         waypoints={props.waypoints}
         onRemove={props.onRemoveWaypoint}
         onRemoveMany={props.onRemoveWaypoints}
