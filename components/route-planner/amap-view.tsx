@@ -172,9 +172,11 @@ function createPoiPopup(opts: {
   adname?: string
   lng: number
   lat: number
+  /** 是否正在反查地址，true 时按钮禁用 */
+  loading?: boolean
   onAdd: () => void
 }): HTMLElement {
-  const { name, address, cityname, adname, lng, lat, onAdd } = opts
+  const { name, address, cityname, adname, lng, lat, loading = false, onAdd } = opts
   const wrap = document.createElement("div")
   wrap.style.cssText = `
     background:#fff;
@@ -187,6 +189,9 @@ function createPoiPopup(opts: {
     font-family:system-ui,-apple-system,'PingFang SC';
   `
   const region = [cityname, adname].filter(Boolean).join(" · ")
+  const btnLabel = loading ? "正在解析地址…" : "+ 添加到路线"
+  const btnBg = loading ? "#94a3b8" : "#2563eb"
+  const btnCursor = loading ? "wait" : "pointer"
   wrap.innerHTML = `
     <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:4px;">
       ${escapeHtml(name)}
@@ -196,7 +201,7 @@ function createPoiPopup(opts: {
         ? `<div style="font-size:11px;color:#64748b;margin-bottom:4px;">${escapeHtml(region)}</div>`
         : ""
     }
-    <div style="font-size:11px;color:#64748b;line-height:1.45;margin-bottom:6px;word-break:break-all;">
+    <div style="font-size:11px;color:${loading ? "#94a3b8" : "#64748b"};line-height:1.45;margin-bottom:6px;word-break:break-all;">
       ${escapeHtml(address)}
     </div>
     <div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace;margin-bottom:8px;">
@@ -204,22 +209,25 @@ function createPoiPopup(opts: {
     </div>
     <button
       data-add-btn
+      ${loading ? "disabled" : ""}
       style="
         width:100%;
-        background:#2563eb;
+        background:${btnBg};
         color:#fff;
         border:none;
         border-radius:6px;
         padding:6px 10px;
         font-size:12px;
         font-weight:500;
-        cursor:pointer;
+        cursor:${btnCursor};
         font-family:inherit;
+        opacity:${loading ? "0.7" : "1"};
+        transition:background 0.15s;
       "
-    >+ 添加到路线</button>
+    >${btnLabel}</button>
   `
   const btn = wrap.querySelector<HTMLButtonElement>("[data-add-btn]")
-  if (btn) {
+  if (btn && !loading) {
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation()
       onAdd()
@@ -346,57 +354,58 @@ export function AMapView({
           const lat = typeof e.lnglat.getLat === "function" ? e.lnglat.getLat() : e.lnglat.lat
           console.log("[v0] hotspotclick:", e.name, e.id, lng, lat)
 
-          // 先用 hotspot 自带的 name 和 lnglat 立即弹窗，然后异步补充地址
+          // 用闭包变量持有最新地址信息，handleAdd 始终读最新值
+          const fallbackAddress = `${lng.toFixed(5)}, ${lat.toFixed(5)}`
+          let address = fallbackAddress
+          let cityname: string | undefined
+          let adname: string | undefined
+
           const handleAdd = () => {
-            const fullPoi = {
+            onPickPointRef.current?.({
               id: e.id,
               name: e.name,
-              address: addressBuf,
+              address,
               location: `${lng},${lat}`,
               lngLat: [lng, lat] as LngLat,
-            }
-            onPickPointRef.current?.(fullPoi)
+              cityname,
+              adname,
+            })
             infoWindow.close()
           }
-          let addressBuf = "加载中…"
+
+          // 第一帧：loading 状态，按钮禁用，避免用户在反查完成前点击
           infoWindow.setContent(
             createPoiPopup({
               name: e.name,
-              address: addressBuf,
+              address: "正在解析地址…",
               lng,
               lat,
+              loading: true,
               onAdd: handleAdd,
             }),
           )
           infoWindow.open(map, [lng, lat])
 
-          // 反查地址
+          // 异步反查地址
           const detail = await reverseGeocode(lng, lat)
           if (detail) {
-            addressBuf = detail.address || `${lng.toFixed(5)}, ${lat.toFixed(5)}`
-            infoWindow.setContent(
-              createPoiPopup({
-                name: e.name,
-                address: addressBuf,
-                cityname: detail.cityname,
-                adname: detail.adname,
-                lng,
-                lat,
-                onAdd: handleAdd,
-              }),
-            )
-          } else {
-            addressBuf = `${lng.toFixed(5)}, ${lat.toFixed(5)}`
-            infoWindow.setContent(
-              createPoiPopup({
-                name: e.name,
-                address: addressBuf,
-                lng,
-                lat,
-                onAdd: handleAdd,
-              }),
-            )
+            address = detail.address || fallbackAddress
+            cityname = detail.cityname
+            adname = detail.adname
           }
+          // 反查完成（无论成功失败）：刷新弹窗并启用按钮
+          infoWindow.setContent(
+            createPoiPopup({
+              name: e.name,
+              address,
+              cityname,
+              adname,
+              lng,
+              lat,
+              loading: false,
+              onAdd: handleAdd,
+            }),
+          )
         })
 
         setStatus("ready")

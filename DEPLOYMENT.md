@@ -6,6 +6,29 @@
 
 ## 变更日志
 
+### 2026-05-03 · 修复底图 POI 添加后地址显示「加载中...」（v1.8）
+
+**现象**：在地图上点击底图自带的 POI 标签，弹窗出现后立即点「+ 添加到路线」，加入点位管理后名称下方显示「加载中…」而不是真实地址。
+
+**根因**：v1.4 的 hotspotclick 处理是这样的——
+1. 第一帧立刻 `setContent(... address: "加载中…", onAdd: handleAdd)` 并打开弹窗。
+2. 异步 `await reverseGeocode(...)` 反查地址。
+3. 反查完成后 `setContent(...)` 用真实地址重新渲染。
+
+但 `handleAdd` 闭包里读取的是闭包中 `let addressBuf`，**用户在第 1 步和第 3 步之间点击按钮**就会把 `"加载中…"` 写进 `Waypoint.poi.address`。在网络稍慢的情况下这个时间窗几乎是必现 bug。
+
+**修复**：
+- `components/route-planner/amap-view.tsx` 中 `createPoiPopup` 增加 `loading?: boolean` 参数：`true` 时按钮显示「正在解析地址…」、`disabled`、灰色背景、`cursor: wait`，**不绑定 click 事件**，从根本上禁止提前点击。
+- `hotspotclick` 处理重写：
+  - 闭包内用 `let address = fallbackAddress`（fallback = `lng.toFixed(5),lat.toFixed(5)`），`cityname` / `adname` 同样用 `let` 持有。
+  - 第一帧 `loading: true`，address 显示「正在解析地址…」（**仅 UI 文案**，不会被写入点位）。
+  - regeo 完成后更新 `address / cityname / adname` 三个闭包变量，再 `setContent({ loading: false, ... })` 启用按钮。
+  - regeo 失败时 `address` 保留 fallback（坐标字符串），按钮也启用。
+  - 用户点击「+ 添加到路线」时 `handleAdd` 读到的 `address` 已经是真实值或坐标兜底，**永远不会是 UI 文案**。
+- `cityname` / `adname` 也一并写入 POI（之前漏了），与搜索结果保持字段一致。
+
+---
+
 ### 2026-05-03 · 修复多点骑行规划 21002 + 网络超时重试（v1.7）
 
 **问题 1（500 报错）**：
@@ -86,7 +109,7 @@
 
 **用户操作流程（出现 NOT_HAVE_PERMISSION 时）**：
 1. 打开 [高德控制台 → 应用管理](https://console.amap.com/dev/key/app)。
-2. 找到对应的 `AMAP_WEB_KEY`（注意不是前端 JS API Key）。
+2. 找到对应的 `AMAP_WEB_KEY`（注��不是前端 JS API Key）。
 3. 点「编辑」→ 服务平台勾选 `Web 服务`。
 4. 在服务列表中**勾选『路径规划 V5』和『地理/逆地理编码』**（很多人忘记勾这两个）。
 5. 保存，1-2 分钟生效，刷新页面重试。
