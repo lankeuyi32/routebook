@@ -21,8 +21,7 @@ import type { Waypoint, RoutePlanResult, LngLat, ElevationPoint } from "@/types/
 import { MapTopToolbar, MapZoomControls, type MapLayer } from "./map-toolbar"
 import { ElevationProfile } from "./elevation-profile"
 import { getAmapJsKey, getAmapSecurityCode, reverseGeocode } from "@/services/amap"
-import { Loader2, AlertCircle, Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Loader2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { launchAmapNav } from "@/lib/launch-nav"
 
@@ -269,7 +268,6 @@ export function AMapView({
   const markersRef = useRef<unknown[]>([])
   const polylineRef = useRef<unknown | null>(null)
   const layerCacheRef = useRef<Record<string, unknown>>({})
-  const pickModeRef = useRef(false)
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
   // hotspotclick 触发时间戳，用于在 250ms 内去重 click 事件
   const lastHotspotTsRef = useRef(0)
@@ -283,17 +281,11 @@ export function AMapView({
   }, [onPickPoint])
 
   const [layer, setLayer] = useState<MapLayer>("standard")
-  const [pickMode, setPickMode] = useState(false)
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const jsKey = useMemo(() => getAmapJsKey(), [])
   const securityCode = useMemo(() => getAmapSecurityCode(), [])
-
-  // 同步 pickMode 到 ref
-  useEffect(() => {
-    pickModeRef.current = pickMode
-  }, [pickMode])
 
   // 初始化地图（仅一次）
   useEffect(() => {
@@ -344,9 +336,7 @@ export function AMapView({
         })
         mapRef.current = map
 
-        // 1) 地图任意位置点击
-        //    - "地图选点"模式：直接反查并加点（一键多点高效模式）
-        //    - 普通模式：弹出信息卡，用户确认后再加入路线（与点击底图 POI 行为一致）
+        // 1) 地图任意位置点击 -> 弹出信息卡，用户确认后再加入路线（与点击底图 POI 行为一致）
         //    注意：点击底图 POI 标签时高德会同时触发 click 和 hotspotclick，
         //    用 lastHotspotTsRef 在 250ms 内去重，避免开两个弹窗
         map.on("click", async (e) => {
@@ -355,15 +345,6 @@ export function AMapView({
 
           const { lng, lat } = e.lnglat
 
-          // 模式 A：选点模式 -> 直接加点，不弹卡
-          if (pickModeRef.current) {
-            const poi = await reverseGeocode(lng, lat)
-            if (poi && onPickPointRef.current) onPickPointRef.current(poi)
-            setPickMode(false)
-            return
-          }
-
-          // 模式 B：普通模式 -> 弹卡确认
           const fallbackAddress = `${lng.toFixed(5)}, ${lat.toFixed(5)}`
           let name = "地图点选位置"
           let address = fallbackAddress
@@ -871,21 +852,6 @@ export function AMapView({
         </div>
       )}
 
-      {/* 地图点选按钮 */}
-      {status === "ready" && onPickPoint && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-          <Button
-            size="sm"
-            variant={pickMode ? "default" : "outline"}
-            className="h-8 gap-1.5 shadow-sm"
-            onClick={() => setPickMode((v) => !v)}
-          >
-            <Plus className="size-3.5" />
-            {pickMode ? "请在地图上点选位置" : "在地图上添加点位"}
-          </Button>
-        </div>
-      )}
-
       {/* 顶部右侧图层切换 */}
       <MapTopToolbar
         layer={layer}
@@ -894,7 +860,7 @@ export function AMapView({
         onReload={handleReload}
       />
 
-      {/* 骑行模式：路况图例（绿畅 / 黄缓 / 红堵） */}
+      {/* 骑行模式：路况图例（绿畅 / 黄缓 / 红堵�� */}
       {status === "ready" && layer === "cycling" && (
         <div className="absolute top-14 right-3 z-10 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-2.5">
           <span className="text-[11px] text-muted-foreground font-medium">路况</span>

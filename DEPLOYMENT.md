@@ -6,6 +6,22 @@
 
 ## 变更日志
 
+### 2026-05-03 · 移除地图顶部「在地图上添加点位」按钮（v1.17）
+
+**变更**：删除地图顶部居中的「在地图上添加点位 / 请在地图上点选位置」切换按钮。
+
+**原因**：v1.11 起，地图任意位置（POI / 空白）单击都会弹出统一信息卡，用户点「+ 添加到路线」即可加入；此按钮代表的"选点模式"（直接点直接加、不弹卡）已与默认行为重复，反而让 UI 变得啰嗦。
+
+**清理范围**（`components/route-planner/amap-view.tsx`）：
+- 删除按钮 JSX（顶部居中浮层）。
+- 删除 `pickMode` / `setPickMode` 与 `pickModeRef`、对应的 useState 与 useEffect 同步。
+- 简化 `map.on("click")` handler：移除「模式 A：选点模式」分支，统一走弹卡确认流程。
+- 移除已不使用的 `Plus` 图标与 `Button` 组件 import。
+
+**功能保留**：地图任意位置单击 → 弹卡 → 确认加点；底图自带 POI 标签的 hotspotclick 流程不变。
+
+---
+
 ### 2026-05-03 · 移动端专属布局：标题→地图→工作区，滚动时标题渐隐（v1.16）
 
 **需求**：手机端把地图放在「骑行路书制作」标题与「地点搜索」之间，向下滑动时标题渐隐，各模块布局合理且功能不丢失。
@@ -227,7 +243,7 @@
 2. 异步 `await reverseGeocode(...)` 反查地址。
 3. 反查完成后 `setContent(...)` 用真实地址重新渲染。
 
-但 `handleAdd` 闭包里读取的是闭包中 `let addressBuf`，**用户在第 1 步和第 3 步之间点击按钮**就会把 `"加载中…"` 写进 `Waypoint.poi.address`。在网络稍慢的情况下这个时间窗几乎是必现 bug。
+但 `handleAdd` 闭包里读取的是闭包中 `let addressBuf`，**用户在第 1 步和第 3 步之间点击按钮**就会把 `"加载中…"` 写进 `Waypoint.poi.address`。在网络稍慢的情况下这���时间窗几乎是必现 bug。
 
 **修复**：
 - `components/route-planner/amap-view.tsx` 中 `createPoiPopup` 增加 `loading?: boolean` 参数：`true` 时按钮显示「正在解析地址…」、`disabled`、灰色背景、`cursor: wait`，**不绑定 click 事件**，从根本上禁止提前点击。
