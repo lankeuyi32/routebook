@@ -6,6 +6,32 @@
 
 ## 变更日志
 
+### 2026-05-03 · 准星按钮改为 GPS 定位 + 删除空齿轮按钮（v1.9）
+
+**需求**：地图右下角原本有两个按钮（上：准星 Crosshair，下：齿轮 Settings2）。准星按钮之前误绑到了 `handleReset`（其实是路线全览），齿轮按钮没绑事件。
+- 准星 → **定位到我的位置**：一键将地图中心切换到用户当前 GPS 位置。
+- 齿轮 → **删除**。
+
+**实现**：
+- `components/route-planner/map-toolbar.tsx`：
+  - 删除齿轮按钮和未使用的 `Settings2` 图标导入。
+  - 准星按钮支持 `locating` 状态：定位中显示蓝色 spinner、disabled、`cursor-wait`。
+- `components/route-planner/amap-view.tsx`：
+  - `AMapNS` 类型扩展 `setCenter` / `setZoom` / `setZoomAndCenter` / `convertFrom`。
+  - JS API 加载时新增 `AMap.convertFrom` 插件（用于 WGS84 → GCJ02 坐标转换）。
+  - 新增 `handleLocate()`：
+    1. 调用 `navigator.geolocation.getCurrentPosition`（`enableHighAccuracy:true`, `timeout:10s`, `maximumAge:30s`）。
+    2. 用 `AMap.convertFrom([lng, lat], "gps", cb)` 把浏览器返回的 WGS84 坐标转成高德 GCJ02（不转换会有几十到几百米偏移）。
+    3. `map.setZoomAndCenter(16, [lng, lat])` 将地图中心切到该坐标。
+    4. 在该位置渲染一个**蓝色脉冲圆点 marker**（18px，白边 + 蓝色光晕），通过 `userLocationMarkerRef` 单实例管理，每次定位先移除旧的。
+    5. 成功 toast：`已定位到当前位置 · lng, lat`。
+    6. 失败时根据 `err.code` 区分三种原因（`PERMISSION_DENIED` / `POSITION_UNAVAILABLE` / `TIMEOUT`），分别给出中文 toast。
+  - 新增 `userLocationMarkerRef` 与 `locating` 状态。
+
+**注意**：浏览器 Geolocation 需要 HTTPS（v0 预览域名 `*.vusercontent.net` 已是 HTTPS），首次使用浏览器会弹权限提示，用户需要点「允许」。如果用户拒绝过，需要在地址栏左侧重新授予权限。
+
+---
+
 ### 2026-05-03 · 修复底图 POI 添加后地址显示「加载中...」（v1.8）
 
 **现象**：在地图上点击底图自带的 POI 标签，弹窗出现后立即点「+ 添加到路线」，加入点位管理后名称下方显示「加载中…」而不是真实地址。
@@ -90,7 +116,7 @@
 | errcode | errmsg | 真实原因 | 修复方法 |
 |---|---|---|---|
 | 10001 | INVALID_USER_KEY | Key 不存在 | 重新创建 |
-| 10003 | DAILY_QUERY_OVER_LIMIT | 个人 5000 次/日额度用完 | 等次日 0 点，或升级配额 |
+| 10003 | DAILY_QUERY_OVER_LIMIT | ���人 5000 次/日额度用完 | 等次日 0 点，或升级配额 |
 | 10004 | ACCESS_TOO_FREQUENT | QPS 超限（个人 50/秒）| 节流后重试 |
 | 10005/10010 | INVALID_USER_IP | IP 白名单限制 | 关闭白名单或加入服务器 IP |
 | **10009** | USERKEY_PLAT_NOMATCH | Key 类型不匹配 | 用「Web 服务」类型 Key（不是 JS API Key） |
@@ -226,7 +252,7 @@
 - 新增依赖：`@amap/amap-jsapi-loader@^1.0.1`
 - 新增服务端代理路由（保护 Web 服务 Key，仅服务端读取 `AMAP_WEB_KEY`）：
   - `app/api/amap/search/route.ts` —— POI 搜索（输入提示 + 关键字检索兜底）
-  - `app/api/amap/regeo/route.ts` —— 逆地理编码（地图点选反查地址）
+  - `app/api/amap/regeo/route.ts` —— 逆地理编码���地图点选反查地址）
   - `app/api/route/plan/route.ts` —— 骑行路径规划（v5 `direction/bicycling`）
 - 新增组件：`components/route-planner/amap-view.tsx`
   - 基于高德 JS API v2 的真实地图组件

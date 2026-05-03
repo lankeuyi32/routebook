@@ -23,6 +23,7 @@ import { ElevationProfile } from "./elevation-profile"
 import { getAmapJsKey, getAmapSecurityCode, reverseGeocode } from "@/services/amap"
 import { Loader2, AlertCircle, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 interface Props {
   waypoints: Waypoint[]
@@ -76,6 +77,9 @@ interface AMapInstance {
   zoomIn: () => void
   zoomOut: () => void
   setMapStyle: (style: string) => void
+  setCenter: (center: [number, number], immediately?: boolean) => void
+  setZoom: (zoom: number, immediately?: boolean) => void
+  setZoomAndCenter: (zoom: number, center: [number, number], immediately?: boolean) => void
   add: (overlay: unknown | unknown[]) => void
   remove: (overlay: unknown | unknown[]) => void
   destroy: () => void
@@ -100,6 +104,12 @@ interface AMapNS {
   Pixel: new (x: number, y: number) => unknown
   Size: new (w: number, h: number) => unknown
   Bounds: unknown
+  /** WGS84 -> GCJ02 坐标转换（plugin AMap.convertFrom） */
+  convertFrom?: (
+    lnglat: [number, number] | [number, number][],
+    type: "gps" | "baidu" | "mapbar",
+    cb: (status: string, result: { info: string; locations: { lng: number; lat: number }[] }) => void,
+  ) => void
 }
 
 const ROLE_COLOR: Record<Waypoint["role"], string> = {
@@ -257,6 +267,9 @@ export function AMapView({
   const layerCacheRef = useRef<Record<string, unknown>>({})
   const pickModeRef = useRef(false)
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
+  // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
+  const userLocationMarkerRef = useRef<unknown | null>(null)
+  const [locating, setLocating] = useState(false)
   // onPickPoint 用 ref 避免重新初始化地图
   const onPickPointRef = useRef(onPickPoint)
   useEffect(() => {
@@ -297,7 +310,7 @@ export function AMapView({
         return AMapLoader.load({
           key: jsKey,
           version: "2.0",
-          plugins: ["AMap.Scale", "AMap.ToolBar"],
+          plugins: ["AMap.Scale", "AMap.ToolBar", "AMap.convertFrom"],
         })
       })
       .then((AMap: AMapNS) => {
@@ -551,12 +564,94 @@ export function AMapView({
   function handleZoomOut() {
     mapRef.current?.zoomOut()
   }
-  function handleReset() {
-    const overlays: unknown[] = [...markersRef.current]
-    if (polylineRef.current) overlays.push(polylineRef.current)
-    if (overlays.length > 0) {
-      mapRef.current?.setFitView(overlays, false, [80, 80, 200, 80], 16)
+
+  /**
+   * 定位到用户当前 GPS 位置
+   * - 浏览器 Geolocation 拿到的是 WGS84，需要走 AMap.convertFrom 转 GCJ02 才能在高德地图上对齐
+   * - 失败时 toast 提示原因（拒绝授权 / 不可用 / 超时）
+   */
+  function handleLocate() {
+    const map = mapRef.current
+    const AMap = amapNsRef.current
+    if (!map || !AMap) return
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("当前浏览器不支持定位")
+      return
     }
+
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const wgsLng = pos.coords.longitude
+        const wgsLat = pos.coords.latitude
+
+        const applyOnMap = (lng: number, lat: number) => {
+          map.setZoomAndCenter(16, [lng, lat])
+          // 移除上次的位置 marker
+          if (userLocationMarkerRef.current) {
+            map.remove(userLocationMarkerRef.current)
+          }
+          // 蓝色脉冲圆点 marker
+          const dom = document.createElement("div")
+          dom.style.cssText = `
+            width:18px;height:18px;border-radius:50%;
+            background:#2563eb;border:3px solid #fff;
+            box-shadow:0 0 0 2px rgba(37,99,235,.35),0 4px 12px rgba(37,99,235,.5);
+          `
+          const marker = new AMap.Marker({
+            position: [lng, lat],
+            content: dom,
+            offset: new AMap.Pixel(-9, -9),
+            zIndex: 200,
+            title: "我的位置",
+          })
+          map.add(marker)
+          userLocationMarkerRef.current = marker
+          toast.success("已定位到当前位置", {
+            description: `${lng.toFixed(5)}, ${lat.toFixed(5)}`,
+          })
+          setLocating(false)
+        }
+
+        // WGS84 -> GCJ02
+        if (typeof AMap.convertFrom === "function") {
+          AMap.convertFrom([wgsLng, wgsLat], "gps", (status, result) => {
+            if (status === "complete" && result.locations && result.locations.length > 0) {
+              const { lng, lat } = result.locations[0]
+              applyOnMap(lng, lat)
+            } else {
+              // 转换失败兜底：直接用原始坐标（误差几十米到几百米）
+              console.warn("[v0] convertFrom 失败，使用原始 WGS84 坐标:", result)
+              applyOnMap(wgsLng, wgsLat)
+            }
+          })
+        } else {
+          applyOnMap(wgsLng, wgsLat)
+        }
+      },
+      (err) => {
+        setLocating(false)
+        let msg = "定位失败"
+        let hint = err.message
+        if (err.code === err.PERMISSION_DENIED) {
+          msg = "未授权定位"
+          hint = "请在浏览器地址栏左侧的权限设置中允许本站访问位置信息"
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          msg = "位置信息不可用"
+          hint = "GPS 信号弱或设备无定位能力，请稍后重试"
+        } else if (err.code === err.TIMEOUT) {
+          msg = "定位超时"
+          hint = "网络或 GPS 信号弱，请到开阔位置重试"
+        }
+        toast.error(msg, { description: hint, duration: 6000 })
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10_000,
+        maximumAge: 30_000,
+      },
+    )
   }
 
   return (
@@ -652,7 +747,12 @@ export function AMapView({
       <MapTopToolbar layer={layer} onLayerChange={setLayer} />
 
       {/* ���侧缩放控件 */}
-      <MapZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onLocate={handleReset} />
+      <MapZoomControls
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onLocate={handleLocate}
+        locating={locating}
+      />
 
       {/* 海拔剖面 */}
       {route && elevation.length > 0 && (

@@ -11,7 +11,7 @@ import {
   Plus,
   Minus,
   Crosshair,
-  Settings2,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -116,7 +116,8 @@ export function MapZoomControls({
   onZoomIn,
   onZoomOut,
   onLocate,
-}: Pick<Props, "onZoomIn" | "onZoomOut" | "onLocate">) {
+  locating = false,
+}: Pick<Props, "onZoomIn" | "onZoomOut" | "onLocate"> & { locating?: boolean }) {
   return (
     <>
       <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col bg-card border border-border rounded-md shadow-sm">
@@ -132,18 +133,17 @@ export function MapZoomControls({
       <div className="absolute right-3 bottom-3 z-10 flex flex-col gap-1.5">
         <button
           type="button"
-          aria-label="定位"
+          aria-label="定位到我的位置"
+          title="定位到我的位置"
           onClick={onLocate}
-          className="size-8 bg-card border border-border rounded-md shadow-sm hover:bg-accent flex items-center justify-center text-foreground"
+          disabled={locating}
+          className="size-8 bg-card border border-border rounded-md shadow-sm hover:bg-accent disabled:opacity-70 disabled:cursor-wait flex items-center justify-center text-foreground transition-colors"
         >
-          <Crosshair className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="设置"
-          className="size-8 bg-card border border-border rounded-md shadow-sm hover:bg-accent flex items-center justify-center text-foreground"
-        >
-          <Settings2 className="size-3.5" />
+          {locating ? (
+            <Loader2 className="size-3.5 animate-spin text-blue-600" />
+          ) : (
+            <Crosshair className="size-3.5" />
+          )}
         </button>
       </div>
     </>
