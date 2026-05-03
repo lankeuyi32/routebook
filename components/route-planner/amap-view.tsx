@@ -24,6 +24,7 @@ import { getAmapJsKey, getAmapSecurityCode, reverseGeocode } from "@/services/am
 import { Loader2, AlertCircle, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import { launchAmapNav } from "@/lib/launch-nav"
 
 interface Props {
   waypoints: Waypoint[]
@@ -644,11 +645,10 @@ export function AMapView({
   }
 
   /**
-   * 拉起高德导航（骑行模式）
-   * - 桌面：在新标签打开高德 Web 导航页
-   * - 移动端：尝试通过 callnative=1 唤起高德 App，未安装则回落到 Web 版
-   * - 注意：高德 URI API 的骑行模式（mode=ride）官方不支持途经点参数，
-   *   多点路线只能取「起→终」两端。
+   * 拉起高德骑行导航
+   * - 桌面 / 微信内置 → 新标签打开高德 Web 导航
+   * - iOS / Android → 优先尝试 App URL Scheme（t=3 骑行），1.6s 未跳走则回落 Web
+   * - 高德骑行不支持途经点，多点路线仅使用起+终
    */
   function handleLaunchNav() {
     if (waypoints.length < 2) {
@@ -658,35 +658,34 @@ export function AMapView({
 
     const start = waypoints[0]
     const end = waypoints[waypoints.length - 1]
-    const fromName = encodeURIComponent(start.poi.name || "起点")
-    const toName = encodeURIComponent(end.poi.name || "终点")
     const [fromLng, fromLat] = start.poi.lngLat
     const [toLng, toLat] = end.poi.lngLat
 
-    const params = new URLSearchParams({
-      from: `${fromLng},${fromLat},${decodeURIComponent(fromName)}`,
-      to: `${toLng},${toLat},${decodeURIComponent(toName)}`,
-      mode: "ride",
-      src: "route-planner",
-      coordinate: "gaode",
-      callnative: "1",
-    })
-    const url = `https://uri.amap.com/navigation?${params.toString()}`
+    const result = launchAmapNav(
+      { lng: fromLng, lat: fromLat, name: start.poi.name || "起点" },
+      { lng: toLng, lat: toLat, name: end.poi.name || "终点" },
+      waypoints.length > 2,
+    )
 
-    console.log("[v0] launch nav:", url)
-    const win = window.open(url, "_blank", "noopener,noreferrer")
-    if (!win) {
-      toast.error("无法打开导航页", { description: "请检查浏览器是否拦截了弹出窗口" })
-      return
-    }
+    // 平台与首条尝试 URL 写日志，便于排查
+    console.log("[v0] launch nav:", result.platform, result.attempts[0])
 
-    if (waypoints.length > 2) {
-      toast.message("已在新标签打开高德骑行导航", {
-        description: `当前 ${waypoints.length} 个点位；高德骑行导航不支持途经点，仅使用起点与终点`,
+    // 反馈
+    if (result.platform === "ios" || result.platform === "android") {
+      const desc = result.truncatedWaypoints
+        ? `仅使用起点与终点（高德骑行不支持途经点）；若未自动唤起 App，会在 1.6 秒后跳转网页版`
+        : "若未自动唤起 App，会在 1.6 秒后跳转网页版"
+      toast.success("正在唤起高德骑行导航", { description: desc, duration: 5000 })
+    } else if (result.platform === "wechat") {
+      toast.message("微信内已打开网页骑行导航", {
+        description: "如需 App 内导航，请右上角选择「在浏览器打开」",
         duration: 6000,
       })
     } else {
-      toast.success("已在新标签打开高德骑行导航")
+      const desc = result.truncatedWaypoints
+        ? `当前 ${waypoints.length} 个点位；高德骑行不支持途经点，仅使用起点与终点`
+        : undefined
+      toast.success("已在新标签打开高德骑行导航", { description: desc, duration: 5000 })
     }
   }
 

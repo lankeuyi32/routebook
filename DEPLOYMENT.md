@@ -6,6 +6,32 @@
 
 ## 变更日志
 
+### 2026-05-03 · 移动端拉起高德 App 骑行导航（智能分发 + 兜底）（v1.15）
+
+**问题**：之前仅用 `https://uri.amap.com/navigation?mode=ride` 拉起，移动端唤起高德 App 时**骑行模式识别率低**——iOS 几乎无效，Android 部分版本退化为驾车。原因是 `mode=ride` 在 Web URI 协议里对 App 的支持本就不完整。
+
+**修复**：新增智能分发器 `lib/launch-nav.ts`，按平台选最优 URL，并对 App 未安装做静默兜底。
+
+- **平台嗅探** `detectPlatform()` → `ios` / `android` / `wechat` / `desktop`
+- **iOS** → `iosamap://path?...&t=3&dev=0`
+- **Android** → `amapuri://route/plan?...&t=3&dev=0`
+- **桌面 / 微信内置** → 直接新标签 `https://uri.amap.com/navigation?mode=ride&...`（微信对自定义 scheme 限制严格，不试 App）
+- **未安装兜底**：移动端先 `location.href = scheme` 试图唤起 App，监听 `visibilitychange` 检测页面是否被切走（≈ App 起来了）；1.6 秒内仍可见则自动 `window.open(webUri)`。
+- 参数 `t=3`（高德 App 内：0=驾车 1=公交 2=步行 **3=骑行** 4=货车）；`dev=0` 表示坐标已经是 GCJ-02（与我们的数据一致，不需再偏移）。
+
+**用户反馈**：
+- iOS / Android：toast「正在唤起高德骑行导航 · 若未自动唤起 App，会在 1.6 秒后跳转网页版」
+- 微信：toast「微信内已打开网页骑行导航 · 如需 App 内导航，请右上角选择『在浏览器打开』」
+- 桌面：toast「已在新标签打开高德骑行导航」
+- 多点路线（>2 点）：附带「仅使用起点与终点（高德骑行不支持途经点）」说明
+
+**已知局限**：
+- 高德 App 的 `t=3` 参数生效需要 App 版本 ≥ 9.x，老版本可能仍退化为驾车。
+- 微信内置浏览器对自定义 scheme 限制严格，无法唤起 App，只能跳 H5；可引导用户「右上角…→ 在浏览器打开」后再点。
+- 跨域沙箱（包括 v0 预览的 iframe）里 `location.href = "iosamap://..."` 不会真的拉起 App，需在真机直接打开页面测试。
+
+---
+
 ### 2026-05-03 · 「重载」改为重新规划路线（v1.14）
 
 **问题**：v1.13 把「重载」实现成 `setFitView`(地图全览)，但地图通常已经处于全览状态，点击按钮**视野不变 = 看上去没反应**。
@@ -225,7 +251,7 @@
 
 - `components/route-planner/search-section.tsx`：
   - 新增 `open` 状态控制浮层显示，初始 `false`，点击搜索按钮 / Enter / 输入框聚焦时打开。
-  - 结果区改为 `absolute left-3 right-3 top-full z-30 mt-1.5`，高度上限 `max-h-[min(60vh,520px)]`，自带阴影 + 圆角浮起。
+  - 结果区改为 `absolute left-3 right-3 top-full z-30 mt-1.5`，高度上限 `max-h-[min(60vh,520px)]`，自带阴影 + 圆角浮��。
   - 浮层头部新增「关闭」按钮（X 图标）和当前结果数说明。
   - 选中 POI 后自动收起（`handleSelect`），把屏幕空间还给点位管理。
   - 监听 `mousedown` 实现「点击外部关闭」，监听 `keydown` 支持 ESC 关闭。
@@ -337,7 +363,7 @@
 
 **根因**：高德 `new AMap.Map(container, ...)` 创建时如果 `container` 的 `clientWidth` / `clientHeight` 为 0，瓦片无法计算视口范围，**地图实例正常创建但什么都不画**。
 
-之前的容器层级 `flex-1 flex flex-col overflow-hidden` + 子级 `absolute inset-0`，在某些 flex 链路（缺 `min-h-0` / `min-w-0`）下，绝对定位子元素会被压缩到 0×0。
+之前的容器层级 `flex-1 flex flex-col overflow-hidden` + 子级 `absolute inset-0`��在某些 flex 链路（缺 `min-h-0` / `min-w-0`）下，绝对定位子元素会被压缩到 0×0。
 
 **修复**：
 - `components/route-planner/amap-view.tsx`：
