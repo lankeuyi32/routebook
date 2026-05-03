@@ -6,6 +6,44 @@
 
 ## 变更日志
 
+### 2026-05-03 · 导入功能改为本地文件解析（v1.12）
+
+**变更**：之前的「导入」按钮只是 toast 占位，预期接入后端文件存储。本次取消后端接入，改为**纯前端**解析本地文件，不上传到任何服务器。
+
+**支持格式**：
+| 格式 | 字段 | 抽样策略 |
+|---|---|---|
+| `.gpx` | `<wpt>`（标记点）/ `<rtept>`（路线点）/ `<trkpt>`（轨迹点） | 优先 wpt → rtept → trkpt；trkpt 抽样最多 20 个 |
+| `.tcx` | `<Trackpoint><Position>` | 抽样最多 20 个 |
+| `.kml` | `<Placemark><Point>`、`<LineString>` | Point 全部保留；LineString 每条抽样 10 个 |
+| `.csv` | `lng,lat,name?` 每行 | 全部保留，自动跳过表头 |
+
+**实现要点**：
+- `lib/coord.ts`：纯 JS 实现 **WGS-84 → GCJ-02** 火星坐标偏移算法（GPS 文件都是 WGS-84，高德地图是 GCJ-02，不转会有 50-500 米偏差）。境外坐标自动跳过偏移。
+- `lib/import-route.ts`：`parseRouteFile(file): Promise<ImportResult>`
+  - 按扩展名分发到 `parseGpx` / `parseTcx` / `parseKml` / `parseCsv`；无扩展名时按文件内容嗅探。
+  - XML 用 `DOMParser`（浏览器原生），无第三方依赖。
+  - 所有点经 `wgs84ToGcj02` 转换后封装为 `AmapPOI`，与搜索 / 地图点选的数据结构完全一致，可直接进入 `useRoutePlanner`。
+  - 抽样函数 `sample()` 等距取首尾必含。
+- `hooks/use-route-planner.ts`：新增 `addWaypoints(pois: AmapPOI[])`，单次 setState 内批量加点（避免 N 次串行 setState）。
+- `components/route-planner/bottom-toolbar.tsx`：用隐藏 `<input type="file" accept=".gpx,.tcx,.kml,.csv,...">` + ref 触发；选中后回调 `(file: File) => void`，并 reset value 让用户能重选同一文件。
+- `app/page.tsx` 的 `handleImport(file)`：
+  - 先弹 `toast.loading("正在解析文件…")`。
+  - 调 `parseRouteFile(file)` → `planner.addWaypoints(result.pois)` → 成功 toast 显示 `${format} · ${name} · ${notice}`。
+  - 解析失败 → 错误 toast，原文件错误信息透出。
+  - 自动 `setOverviewSignal(s => s + 1)` 触发地图全览到所有导入的点位。
+
+**安全性**：所有解析都在浏览器端完成，文件内容不会发送到服务器，不依赖任何 API Key。
+
+**示例文件**（可手动构造测试）：
+```csv
+116.4074,39.9042,天安门
+116.4319,39.9985,鸟巢
+116.3974,39.9087,故宫
+```
+
+---
+
 ### 2026-05-03 · 任意位置点击地图都可加点（v1.11）
 
 **需求**：之前只有点击底图自带的 POI 标签（公园、地铁站、商场等热点）才会弹出信息卡，点击空白区域必须先开"地图选点"模式才能加点，发现性差。希望在地图上任何位置都能直接点击加点。
@@ -222,7 +260,7 @@
 
 **问题**：
 1. 左侧固定 380px，在小屏（< 1280px）时挤压地图视野；大屏（> 1920px）又���得过窄。
-2. 整个左侧用一个外层 `ScrollArea` 滚动，搜索结果一旦变多，会把"点位管理"挤到屏幕外，体验差。
+2. 整个左侧用一个外层 `ScrollArea` 滚动，搜索结果一旦变多，会把"点位管理"挤���屏幕外，体验差。
 3. 当点位数量超过 ~10 个时缺乏快速定位的方式。
 
 **修复**：

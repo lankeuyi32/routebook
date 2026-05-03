@@ -29,7 +29,7 @@ interface Props {
   onPlan: () => void
   onOverview: () => void
   onClear: () => void
-  onImport?: () => void
+  onImport?: (file: File) => void
   onExport?: (format: ExportFormat) => void
 }
 

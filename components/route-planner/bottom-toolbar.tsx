@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import { Compass, Upload, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,7 +15,8 @@ import type { ExportFormat } from "@/types/route"
 
 interface Props {
   hasRoute: boolean
-  onImport?: () => void
+  /** 用户选中本地文件后回调，已读取为 File 对象 */
+  onImport?: (file: File) => void
   onExport?: (format: ExportFormat) => void
 }
 
@@ -26,6 +28,19 @@ const FORMATS: Array<{ format: ExportFormat; label: string; hint: string }> = [
 ]
 
 export function BottomToolbar({ hasRoute, onImport, onExport }: Props) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  function handlePickFile() {
+    fileInputRef.current?.click()
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) onImport?.(file)
+    // 重置 value 让用户能再次选同一个文件
+    e.target.value = ""
+  }
+
   return (
     <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-card">
       <button
@@ -38,10 +53,18 @@ export function BottomToolbar({ hasRoute, onImport, onExport }: Props) {
       </button>
 
       <div className="flex items-center gap-1.5">
+        {/* 隐藏的文件选择器，由「导入」按钮触发 */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".gpx,.tcx,.kml,.csv,application/gpx+xml,application/vnd.google-earth.kml+xml,text/csv,text/xml,application/xml"
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <Button
           variant="outline"
           size="sm"
-          onClick={onImport}
+          onClick={handlePickFile}
           className="h-9 px-3 text-[12px]"
         >
           <Upload className="size-3.5 mr-1.5" /> 导入

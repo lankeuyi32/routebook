@@ -7,6 +7,7 @@ import { LeftPanel } from "@/components/route-planner/left-panel"
 import { useRoutePlanner } from "@/hooks/use-route-planner"
 import { Toaster } from "@/components/ui/sonner"
 import { toast } from "sonner"
+import { parseRouteFile } from "@/lib/import-route"
 import type { ExportFormat, AmapPOI } from "@/types/route"
 
 // 动态加载真实地图组件，禁用 SSR（@amap/amap-jsapi-loader 依赖浏览器 window）
@@ -45,8 +46,24 @@ export default function Page() {
     })
   }
 
-  function handleImport() {
-    toast.message("导入文件", { description: "支持 GPX / TCX / KML（接入后端后启用）" })
+  async function handleImport(file: File) {
+    const tid = toast.loading("正在解析文件…", { description: file.name })
+    try {
+      const result = await parseRouteFile(file)
+      planner.addWaypoints(result.pois)
+      toast.success(`已导入 ${result.pois.length} 个点位`, {
+        id: tid,
+        description: result.notice
+          ? `${result.format.toUpperCase()} · ${result.name ?? file.name} · ${result.notice}`
+          : `${result.format.toUpperCase()} · ${result.name ?? file.name}`,
+        duration: 6000,
+      })
+      // 自动让地图全览到导入的点位
+      setOverviewSignal((s) => s + 1)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "文件解析失败"
+      toast.error("导入失败", { id: tid, description: msg, duration: 8000 })
+    }
   }
 
   function handleOverview() {

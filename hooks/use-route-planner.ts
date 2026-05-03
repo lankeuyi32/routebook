@@ -34,6 +34,20 @@ export function useRoutePlanner() {
     })
   }, [])
 
+  /** 批量加点（导入文件时使用），同一次调用内同步追加 */
+  const addWaypoints = useCallback((pois: AmapPOI[]) => {
+    setWaypoints((prev) => {
+      const existing = new Set(prev.map((w) => w.poi.id))
+      const additions: Waypoint[] = []
+      for (const poi of pois) {
+        if (existing.has(poi.id)) continue
+        existing.add(poi.id)
+        additions.push({ uid: genUid(), poi, role: "via" })
+      }
+      return [...prev, ...additions]
+    })
+  }, [])
+
   const removeWaypoint = useCallback((uid: string) => {
     setWaypoints((prev) => prev.filter((w) => w.uid !== uid))
   }, [])
@@ -103,6 +117,7 @@ export function useRoutePlanner() {
     speedLevel,
     setSpeedLevel,
     addWaypoint,
+    addWaypoints,
     removeWaypoint,
     removeWaypoints,
     reorderWaypoints,
