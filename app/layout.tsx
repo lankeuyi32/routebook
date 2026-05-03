@@ -36,27 +36,17 @@ export const metadata: Metadata = {
   other: {
     copyright: `© ${new Date().getFullYear()} ${SITE_AUTHOR}`,
   },
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
+  // 图标由 Next.js App Router 约定自动接管：
+  // - app/icon.svg → favicon
+  // - app/apple-icon.tsx → apple-touch-icon (180×180 PNG，由 ImageResponse 动态生成)
 }
 
 export const viewport: Viewport = {
-  themeColor: '#ffffff',
+  // 品牌主色（与 logo 一致），影响 PWA / iOS 状态栏 / Android 任务卡片
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+  ],
   width: 'device-width',
   initialScale: 1,
 }
