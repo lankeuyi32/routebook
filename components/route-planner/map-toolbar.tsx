@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import {
   Undo2,
   Redo2,

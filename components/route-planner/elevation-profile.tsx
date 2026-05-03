@@ -65,9 +65,10 @@ export function ElevationProfile({ data, className }: Props) {
 
   const current = hoverIdx !== null ? data[hoverIdx] : null
 
-  function handleMove(e: React.MouseEvent<SVGSVGElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const px = ((e.clientX - rect.left) / rect.width) * W
+  /** 通用「客户端 X 坐标 → data 索引」 */
+  function pickIndexByClientX(svg: SVGSVGElement, clientX: number) {
+    const rect = svg.getBoundingClientRect()
+    const px = ((clientX - rect.left) / rect.width) * W
     if (px < PAD_L || px > W - PAD_R) {
       setHoverIdx(null)
       return
@@ -82,6 +83,16 @@ export function ElevationProfile({ data, className }: Props) {
       else hi = mid
     }
     setHoverIdx(lo)
+  }
+
+  function handleMove(e: React.MouseEvent<SVGSVGElement>) {
+    pickIndexByClientX(e.currentTarget, e.clientX)
+  }
+
+  function handleTouch(e: React.TouchEvent<SVGSVGElement>) {
+    const t = e.touches[0]
+    if (!t) return
+    pickIndexByClientX(e.currentTarget, t.clientX)
   }
 
   return (
@@ -102,9 +113,12 @@ export function ElevationProfile({ data, className }: Props) {
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"
-          className="w-full h-[140px] block"
+          className="w-full h-[140px] block touch-none"
           onMouseMove={handleMove}
           onMouseLeave={() => setHoverIdx(null)}
+          onTouchStart={handleTouch}
+          onTouchMove={handleTouch}
+          onTouchEnd={() => setHoverIdx(null)}
         >
           <defs>
             <linearGradient id="elev-fill" x1="0" y1="0" x2="0" y2="1">

@@ -89,13 +89,32 @@ export default function Page() {
       return
     }
     const tid = toast.loading("正在重新规划路线…")
-    await planner.planRoute()
-    // planRoute 内部会通过 planError useEffect 自动弹错；成功时这里更新 toast
-    if (!planner.planError) {
+    // 用 planRoute 的返回值判断成败，避免读到闭包旧的 planError
+    const result = await planner.planRoute()
+    if (result.ok) {
       toast.success("路线已重新规划", { id: tid })
     } else {
+      // planError useEffect 会另外弹一条详细错误 toast；这里只关掉 loading
       toast.dismiss(tid)
     }
+  }
+
+  /** 清空全部点位与路线（带确认） */
+  function handleClear() {
+    if (planner.waypoints.length === 0 && !planner.route) {
+      planner.clearAll()
+      return
+    }
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `确定要清空全部 ${planner.waypoints.length} 个点位和当前路线吗？此操作不可撤销`,
+      )
+    ) {
+      return
+    }
+    planner.clearAll()
+    toast.message("已清空路线")
   }
 
   // 地图节点（桌面 / 移动两种布局共用同一份实例，避免双倍 JS API 加载）
@@ -131,7 +150,7 @@ export default function Page() {
           onReorderWaypoints={planner.reorderWaypoints}
           onPlan={planner.planRoute}
           onOverview={handleOverview}
-          onClear={planner.clearAll}
+          onClear={handleClear}
           onImport={handleImport}
           onExport={handleExport}
           mapNode={mapNode}
@@ -156,7 +175,7 @@ export default function Page() {
         onReorderWaypoints={planner.reorderWaypoints}
         onPlan={planner.planRoute}
         onOverview={handleOverview}
-        onClear={planner.clearAll}
+        onClear={handleClear}
         onImport={handleImport}
         onExport={handleExport}
       />

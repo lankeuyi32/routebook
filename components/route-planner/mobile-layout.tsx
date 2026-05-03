@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { Bike } from "lucide-react"
 import { SearchSection } from "./search-section"
 import { WaypointList } from "./waypoint-list"
@@ -50,7 +50,6 @@ export function MobileLayout(props: Props) {
     [props.waypoints],
   )
   const [scrolled, setScrolled] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const top = e.currentTarget.scrollTop
@@ -93,7 +92,6 @@ export function MobileLayout(props: Props) {
 
       {/* 工作区：整体可滚动；search-section 浮层不影响这里 */}
       <div
-        ref={scrollRef}
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-card"
       >

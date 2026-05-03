@@ -91,19 +91,10 @@ export function launchAmapNav(from: NavPoint, to: NavPoint, hasWaypoints: boolea
   const appUri = buildAppScheme(platform, from, to)
   attempts.push(appUri)
 
-  // 用一个隐藏 iframe 尝试跳转，避免直接 location.href 在 iOS 失败时触发系统报错
-  // iOS 14+ 需要 location.href 才能可靠唤起，iframe 已不可靠 → 直接 location.href
-  const startTs = Date.now()
+  // iOS 14+ 推荐用 location.href，iframe 方式已不可靠
   let fallbackTimer: number | null = null
 
-  const fallbackToWeb = () => {
-    if (document.hidden) return // 已经离开页面，说明 App 拉起成功
-    if (Date.now() - startTs < 800) return // 太快，说明 scheme 立即报错，仍走 Web
-    attempts.push(webUri)
-    window.open(webUri, "_blank", "noopener,noreferrer")
-  }
-
-  // 监听 visibilitychange：App 起来时页面会被隐藏
+  // 监听 visibilitychange：App 起来时页面会被隐藏 → 取消兜底
   const onVisChange = () => {
     if (document.hidden && fallbackTimer !== null) {
       window.clearTimeout(fallbackTimer)
@@ -117,13 +108,16 @@ export function launchAmapNav(from: NavPoint, to: NavPoint, hasWaypoints: boolea
   try {
     window.location.href = appUri
   } catch {
-    // ignore
+    // ignore：scheme 解析失败时浏览器吞错，不影响兜底逻辑
   }
 
-  // 1.6s 兜底：仍可见 → 跳 Web
+  // 1.6s 后页面仍可见 → 说明 App 没拉起，跳 Web 兜底
   fallbackTimer = window.setTimeout(() => {
     document.removeEventListener("visibilitychange", onVisChange)
-    fallbackToWeb()
+    if (!document.hidden) {
+      attempts.push(webUri)
+      window.open(webUri, "_blank", "noopener,noreferrer")
+    }
     fallbackTimer = null
   }, 1600)
 

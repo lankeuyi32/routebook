@@ -6,6 +6,35 @@
 
 ## 变更日志
 
+### 2026-05-03 · 代码审阅 — 修复闭包陷阱 / 视野跳变 / 死代码等（v1.18）
+
+系统性审阅后发现并修复一组用户操作逻辑与代码问题：
+
+**A. 真正的 Bug**
+- **A1 闭包陷阱**：`app/page.tsx` 的 `handleReload` 在 `await planner.planRoute()` 后读 `planner.planError`，这是闭包旧值，永远是 `null`，导致**失败时也提示"路线已重新规划"**。
+  - 修复：`useRoutePlanner.planRoute` 返回 `Promise<{ ok: true } | { ok: false; error }>`，调用方据此判断成败。
+- **A2 marker 冒泡**：`amap-view.tsx` marker `bubble: true`，点击已有点位会冒泡到 `map.click`，再次弹出"添加到路线"卡（虽被 `addWaypoint` 内 dedup 拦下，但 UX 困惑）。
+  - 修复：marker `bubble: false`。
+
+**B. 死代码 / Lint 噪音**
+- `components/route-planner/map-toolbar.tsx`：`import { useState }` 未使用 → 删除。
+- `components/route-planner/mobile-layout.tsx`：`scrollRef` 仅 write 不 read → 删除 ref 与 import。
+- `lib/launch-nav.ts`：`fallbackToWeb` 内的 `if (Date.now() - startTs < 800) return` 不可达分支（外层 1.6s setTimeout 已经远 > 800） → 简化为内联逻辑，直接判 `document.hidden`。
+- `hooks/use-route-planner.ts`：`addWaypoint` 中按 `prev.length` 分配 `start` / `end` 是死代码（`decoratedWaypoints` useMemo 总会按索引重置） → 统一填 `via` 并加注释。
+
+**C. UX 改进**
+- **C1 视野跳变**：`amap-view.tsx` 中每次 `waypoints` 数组引用变化（包括拖拽排序、删除、改名）都 `setFitView`，用户调好的视野被强制全览。
+  - 修复：新增 `prevWaypointCountRef`，**仅在点位数量变化**（增 / 删 / 导入）时 fitView；拖拽排序、改名不再扰乱视野。
+- **C2 海拔剖面 touch 支持**：`elevation-profile.tsx` 仅有 mouse 事件，移动端用户无法看到海拔/距离数值。
+  - 修复：抽出 `pickIndexByClientX(svg, clientX)` 复用，新增 `onTouchStart` / `onTouchMove` / `onTouchEnd`；svg 加 `touch-none` 禁止页面滚动干扰。
+- **C4 清空确认**：`app/page.tsx` 新增 `handleClear`，点位 ≥ 1 时用 `window.confirm` 防误点丢失全部点位；空状态下直接清空。
+
+**已知未修（低优先级）**
+- D1/D2 设计 token 偏离：`waypoint-list.tsx` 批量删除按钮、`route-stats.tsx` 升降颜色硬编码 Tailwind 颜色（与 destructive token 不统一）。视觉上无功能影响。
+- A3 `isMobile` 切换时地图重建：跨断点切换会触发 JSAPI 重新加载（用户主动断点切换频率低，未优化）。
+
+---
+
 ### 2026-05-03 · 移除地图顶部「在地图上添加点位」按钮（v1.17）
 
 **变更**：删除地图顶部居中的「在地图上添加点位 / 请在地图上点选位置」切换按钮。
@@ -230,7 +259,7 @@
     6. 失败时根据 `err.code` 区分三种原因（`PERMISSION_DENIED` / `POSITION_UNAVAILABLE` / `TIMEOUT`），分别给出中文 toast。
   - 新增 `userLocationMarkerRef` 与 `locating` 状态。
 
-**注意**：浏览器 Geolocation 需要 HTTPS（v0 预览域名 `*.vusercontent.net` 已是 HTTPS），首次使用浏览器会弹权限提示，用户需要点「允许」。如果用户拒绝过，需要在地址栏左侧重新授予权限。
+**注意**：浏览��� Geolocation 需要 HTTPS（v0 预览域名 `*.vusercontent.net` 已是 HTTPS），首次使用浏览器会弹权限提示，用户需要点「允许」。如果用户拒绝过，需要在地址栏左侧重新授予权限。
 
 ---
 
@@ -443,7 +472,7 @@
 4. 在「**域名白名单**」中添加 v0 预览域名通配，如 `*.vusercontent.net` 与你自己的部署域名（如 `*.vercel.app`、自定义域名）
 5. 保存后等 1-2 分钟全网生效，刷新页面
 
-> 若 Key 创建时勾选了「设置安全密钥(securityJsCode)」，必须与 `NEXT_PUBLIC_AMAP_SECURITY_CODE` 一致；该方案会把 securityJsCode 暴露在浏览器，仅适合**开发环境**。生产环境推荐用代理方案（见下方"生产强化"章节，待补充）。
+> 若 Key 创建时勾选了「设置安全密钥(securityJsCode)」，必须与 `NEXT_PUBLIC_AMAP_SECURITY_CODE` 一致；该方案会把 securityJsCode 暴露在浏览器，仅适合**开发环境**。生产环��推荐用代理方案（见下方"生产强化"章节，待补充）。
 
 ---
 

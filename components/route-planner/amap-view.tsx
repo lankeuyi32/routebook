@@ -271,6 +271,8 @@ export function AMapView({
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
   // hotspotclick 触发时间戳，用于在 250ms 内去重 click 事件
   const lastHotspotTsRef = useRef(0)
+  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖拽时视野被重置
+  const prevWaypointCountRef = useRef(0)
   // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
   const userLocationMarkerRef = useRef<unknown | null>(null)
   const [locating, setLocating] = useState(false)
@@ -560,16 +562,18 @@ export function AMapView({
         offset: new AMap.Pixel(0, 0),
         content: buildMarkerContent(w.role, viaIdx, w.poi.name),
         zIndex: 100 + i,
-        bubble: true,
+        // bubble: false（默认值）— 点击 marker 不会冒泡到 map.click，避免对已添加点位再次弹"添加到路线"卡
+        bubble: false,
       })
       map.add(marker)
       markersRef.current.push(marker)
     })
 
-    // 自动调整视野
-    if (waypoints.length > 0) {
+    // 自动调整视野：仅在「点位数量变化」时调整，避免用户调整完视野后因为名称/排序改变又被强制全览
+    if (waypoints.length > 0 && waypoints.length !== prevWaypointCountRef.current) {
       map.setFitView(markersRef.current as unknown[], false, [80, 80, 200, 80], 16)
     }
+    prevWaypointCountRef.current = waypoints.length
   }, [waypoints])
 
   // 同步 polyline
