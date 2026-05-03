@@ -111,20 +111,22 @@ pnpm install
 
 ### 环境变量
 
-在项目根目录创建 `.env.local`：
+仓库根目录提供 [`.env.example`](./.env.example) 作为模板，复制一份并填入自己的 Key：
 
 ```bash
-# 前端 JS API Key（用于地图渲染、定位、坐标转换）
-NEXT_PUBLIC_AMAP_KEY=your_js_api_key_here
-
-# 前端 JS API 安全密钥
-NEXT_PUBLIC_AMAP_SECURITY_CODE=your_js_api_security_code_here
-
-# 后端 Web 服务 Key（仅服务端使用，不暴露浏览器）
-AMAP_WEB_KEY=your_web_service_key_here
+cp .env.example .env.local
+# 然后编辑 .env.local 填入下面三把 Key
 ```
 
-> 三者**必须分别申请**，不可混用。前两个会暴露给浏览器，第三个仅服务端读取（搜索 / 反查 / 路径规划走代理路由）。
+| 变量 | 用途 | 是否暴露浏览器 |
+|---|---|---|
+| `NEXT_PUBLIC_AMAP_KEY` | JS API Key，地图渲染 / 定位 | 是（必须 `NEXT_PUBLIC_` 前缀） |
+| `NEXT_PUBLIC_AMAP_SECURITY_CODE` | JS API 安全密钥 | 是 |
+| `AMAP_WEB_KEY` | Web 服务 Key，仅服务端 Route Handler 使用 | 否 |
+
+> 三者**必须分别申请**，不可混用。`.env.local` 已在 `.gitignore` 中，不会被提交。
+
+部署到 Vercel 时，在 **Project Settings → Environment Variables** 添加同名三项即可。
 
 ### 运行
 
