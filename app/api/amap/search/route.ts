@@ -14,6 +14,7 @@
  */
 
 import { NextResponse } from "next/server"
+import { fetchAmap, networkErrorPayload } from "@/lib/fetch-amap"
 import type { AmapPOI } from "@/types/route"
 
 const AMAP_BASE = "https://restapi.amap.com"
@@ -78,15 +79,18 @@ export async function GET(req: Request) {
     datatype: "all",
     ...(city ? { city } : {}),
   })
-  const tipRes = await fetch(`${AMAP_BASE}/v3/assistant/inputtips?${tipParams.toString()}`, {
-    cache: "no-store",
-  })
-
-  if (!tipRes.ok) {
-    return NextResponse.json({ error: `高德 API 请求失败：${tipRes.status}` }, { status: 502 })
+  let tipData: { status: string; info?: string; tips?: AmapTip[] }
+  try {
+    const tipRes = await fetchAmap(
+      `${AMAP_BASE}/v3/assistant/inputtips?${tipParams.toString()}`,
+    )
+    if (!tipRes.ok) {
+      return NextResponse.json({ error: `高德 API 请求失败：${tipRes.status}` }, { status: 502 })
+    }
+    tipData = (await tipRes.json()) as { status: string; info?: string; tips?: AmapTip[] }
+  } catch (e) {
+    return NextResponse.json(networkErrorPayload(e), { status: 502 })
   }
-
-  const tipData = (await tipRes.json()) as { status: string; info?: string; tips?: AmapTip[] }
   if (tipData.status !== "1") {
     return NextResponse.json({ error: tipData.info ?? "高德 API 错误" }, { status: 502 })
   }
@@ -120,10 +124,13 @@ export async function GET(req: Request) {
       ...(city ? { city } : {}),
       extensions: "base",
     })
-    const placeRes = await fetch(`${AMAP_BASE}/v3/place/text?${placeParams.toString()}`, {
-      cache: "no-store",
-    })
-    if (placeRes.ok) {
+    let placeRes: Response | null = null
+    try {
+      placeRes = await fetchAmap(`${AMAP_BASE}/v3/place/text?${placeParams.toString()}`)
+    } catch (e) {
+      console.warn("[v0] place/text 兜底请求失败，忽略:", e instanceof Error ? e.message : e)
+    }
+    if (placeRes && placeRes.ok) {
       const placeData = (await placeRes.json()) as {
         status: string
         pois?: AmapPoi[]

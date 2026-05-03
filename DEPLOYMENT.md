@@ -6,6 +6,34 @@
 
 ## 变更日志
 
+### 2026-05-03 · 修复多点骑行规划 21002 + 网络超时重试（v1.7）
+
+**问题 1（500 报错）**：
+日志中频繁出现 `POST /api/route/plan 500` 与 `[TypeError: fetch failed] code: ETIMEDOUT`。这是 sandbox/容器出口网络抖动导致首次连接 `restapi.amap.com` 超时，并非高德拒绝请求，重试一次基本就能成功。
+
+**问题 2（502 / 21002）**：
+日志显示——只要请求里带 `waypoints=...`（多途经点），高德就返回 `errcode: 21002 HAVE_NO_PERMISSION`；不带途经点（仅起+终）则正常返回 200。
+
+**根因**：**高德骑行规划 v5（`/v5/direction/bicycling`）不支持 `waypoints` 参数**，这个能力只在驾车规划里有。原代码把 `waypoints` 拼到 URL 上是错误用法，21002 不是权限问题而是"接口不识别该参数"。这与"控制台路径规划权限"无关。
+
+**修复**：
+- 新增 `lib/fetch-amap.ts`：
+  - `fetchAmap(url, { timeoutMs=7000, retries=2, retryDelayMs=300 })` 统一封装 7 秒超时 + 1 次自动重试。
+  - `networkErrorPayload(e)` 把 `ETIMEDOUT` / `ENOTFOUND` 翻译成中文友好提示。
+- `app/api/route/plan/route.ts` 重写：
+  - 把 `[origin, ...waypoints, destination]` 按相邻顺序拆成 N-1 段「起→终」串行调用骑行 v5（每段都不带 waypoints）。
+  - 拼接所有段的 `path` / `steps` / `distance` / `duration`，跨段去重首点。
+  - 包一层 `try/catch`：业务错误（高德返回错误码）走 `explainAmapError` 翻译；网络错误走 `networkErrorPayload`，前端面板和 toast 都能区分两类原因。
+  - 错误码对照表新增 `21002` 条目。
+- `app/api/amap/regeo/route.ts` 与 `app/api/amap/search/route.ts` 都换用 `fetchAmap`，并对网络异常返回 502 + `code: NETWORK_TIMEOUT`，避免直接 500 让 UI 收到不可读的错误。
+- `app/api/amap/search/route.ts` 的 `place/text` 兜底请求失败时改为静默忽略（不影响主结果返回）。
+
+**效果**：
+- 之前 5 个点的路线规划 → 502 21002；现在 → 4 段串行 → 200 完整路线。
+- 之前偶发 ETIMEDOUT → 500；现在 → 自动重试 1 次，成功率显著提升；仍失败时返回友好的"网络抖动，请稍后重试"提示。
+
+---
+
 ### 2026-05-02 · 搜索结果改为浮层，解决与点位管理的空间冲突（v1.6）
 
 **问题**：在 v1.3 的"五段式 flex 布局"下，地点搜索结果（`max-h-[32vh]`）和路线操作区（`max-h-[38vh]`）共占了 70% 视口，导致中间「点位管理」被挤压到只能显示 1-2 条点位，体验非常差。两个搜索框（搜索 + 列表过滤）也容易让用户混淆。
@@ -91,7 +119,7 @@
 ### 2026-05-02 · 左侧面板响应式布局 + 双重过滤搜索（v1.3）
 
 **问题**：
-1. 左侧固定 380px，在小屏（< 1280px）时挤压地图视野；大屏（> 1920px）又显得过窄。
+1. 左侧固定 380px，在小屏（< 1280px）时挤压地图视野；大屏（> 1920px）又���得过窄。
 2. 整个左侧用一个外层 `ScrollArea` 滚动，搜索结果一旦变多，会把"点位管理"挤到屏幕外，体验差。
 3. 当点位数量超过 ~10 个时缺乏快速定位的方式。
 
@@ -277,7 +305,7 @@ body: { origin: "lng,lat", destination: "lng,lat", waypoints: ["lng,lat", ...] }
 高德 Web 服务**未公开 DEM 高程查询接口**。当前实现 `lib/elevation.ts` 使用基于经纬度种子的多周期正弦合成，
 仅生成**演示用**的平滑曲线。`services/route.ts` 据此估算累计爬升/下降/最大坡度。
 
-切换到真实 DEM 时，仅需替换 `estimateElevationProfile()`：
+切换到真实 DEM ��，仅需替换 `estimateElevationProfile()`：
 
 - [OpenTopoData](https://www.opentopodata.org/)（免费，SRTM 30m）
 - 自建 SRTM/ASTER GDEM 服务

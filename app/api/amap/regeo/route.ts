@@ -9,6 +9,7 @@
  */
 
 import { NextResponse } from "next/server"
+import { fetchAmap, networkErrorPayload } from "@/lib/fetch-amap"
 import type { AmapPOI } from "@/types/route"
 
 interface RegeoResponse {
@@ -41,13 +42,19 @@ export async function GET(req: Request) {
     location,
     extensions: "base",
   })
-  const res = await fetch(`https://restapi.amap.com/v3/geocode/regeo?${params.toString()}`, {
-    cache: "no-store",
-  })
-  if (!res.ok) {
-    return NextResponse.json({ error: `高德 API 请求失败：${res.status}` }, { status: 502 })
+
+  let data: RegeoResponse
+  try {
+    const res = await fetchAmap(
+      `https://restapi.amap.com/v3/geocode/regeo?${params.toString()}`,
+    )
+    if (!res.ok) {
+      return NextResponse.json({ error: `高德 API 请求失败：${res.status}` }, { status: 502 })
+    }
+    data = (await res.json()) as RegeoResponse
+  } catch (e) {
+    return NextResponse.json(networkErrorPayload(e), { status: 502 })
   }
-  const data = (await res.json()) as RegeoResponse
   if (data.status !== "1" || !data.regeocode) {
     return NextResponse.json({ error: data.info ?? "高德 API 错误" }, { status: 502 })
   }
