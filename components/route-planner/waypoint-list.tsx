@@ -21,6 +21,11 @@ interface Props {
    * 移动端传入如 `max-h-[320px]` 让列表自身可滚动，仅默认显示 ~5 个点位。
    */
   listMaxHeightClass?: string
+  /**
+   * 紧凑搜索：搜索框默认折叠为「批量」左边的图标按钮，点击后才展开输入框。
+   * 移动端传 true 以释放点位管理标题区的纵向空间。
+   */
+  compactSearch?: boolean
 }
 
 const ROLE_LABEL: Record<Waypoint["role"], string> = {
@@ -42,12 +47,16 @@ export function WaypointList({
   onReorder,
   className,
   listMaxHeightClass,
+  compactSearch = false,
 }: Props) {
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const [filterKw, setFilterKw] = useState("")
+  // 紧凑模式下，搜索输入框的展开状态（默认折叠为图标按钮）
+  const [searchExpanded, setSearchExpanded] = useState(false)
+  const showSearchInput = !compactSearch || searchExpanded
 
   // 过滤后的点位（保持原始顺序与 index）
   const filtered = useMemo(() => {
@@ -106,8 +115,8 @@ export function WaypointList({
   return (
     <section className={cn("flex flex-col border-t border-border", className)}>
       {/* Header（固定） */}
-      <div className="px-4 py-3 shrink-0">
-        <div className="flex items-center justify-between mb-2.5">
+      <div className={cn("shrink-0 px-4", compactSearch ? "py-2" : "py-3")}>
+        <div className={cn("flex items-center justify-between", compactSearch ? "mb-1.5" : "mb-2.5")}>
           <div className="flex items-center gap-2 min-w-0">
             <h2 className="text-sm font-medium text-foreground">点位管理</h2>
             <span className="text-[11px] text-muted-foreground shrink-0">
@@ -117,26 +126,54 @@ export function WaypointList({
               )}
             </span>
           </div>
+
           {waypoints.length > 0 && (
-            <Button
-              size="sm"
-              variant={batchMode ? "secondary" : "default"}
-              onClick={() => {
-                setBatchMode((b) => !b)
-                setSelected(new Set())
-              }}
-              className="h-7 px-2.5 text-[11px] shrink-0"
-            >
-              {batchMode ? "退出" : "批量"}
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* 紧凑模式：搜索图标按钮（在「批量」左侧），点击切换输入框展开 */}
+              {compactSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchExpanded((v) => {
+                      // 收起时一并清空筛选条件，避免列表保留旧过滤态
+                      if (v) setFilterKw("")
+                      return !v
+                    })
+                  }}
+                  aria-label={searchExpanded ? "收起筛选" : "筛选点位"}
+                  aria-pressed={searchExpanded}
+                  className={cn(
+                    "h-7 w-7 inline-flex items-center justify-center rounded-md border transition-colors",
+                    searchExpanded || isFiltering
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-card text-foreground border-border hover:bg-accent",
+                  )}
+                >
+                  <Search className="size-3.5" />
+                </button>
+              )}
+
+              <Button
+                size="sm"
+                variant={batchMode ? "secondary" : "default"}
+                onClick={() => {
+                  setBatchMode((b) => !b)
+                  setSelected(new Set())
+                }}
+                className="h-7 px-2.5 text-[11px] shrink-0"
+              >
+                {batchMode ? "退出" : "批量"}
+              </Button>
+            </div>
           )}
         </div>
 
-        {/* 列表过滤搜索 */}
-        {waypoints.length > 0 && (
+        {/* 列表过滤搜索：非紧凑模式始终显示；紧凑模式由图标按钮切换展开 */}
+        {waypoints.length > 0 && showSearchInput && (
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
+              autoFocus={compactSearch && searchExpanded}
               value={filterKw}
               onChange={(e) => setFilterKw(e.target.value)}
               placeholder="筛选点位名称 / 地址 / 城区"

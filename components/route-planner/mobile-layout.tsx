@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Bike, Search, X, TrendingUp, Maximize2, Minimize2 } from "lucide-react"
 import { WaypointList } from "./waypoint-list"
-import { RouteActions } from "./route-actions"
 import { RouteStats } from "./route-stats"
-import { BottomToolbar } from "./bottom-toolbar"
+import { MobileActionBar } from "./mobile-action-bar"
 import { SiteFooter } from "./site-footer"
 import { ElevationProfile } from "./elevation-profile"
 import { MobileSearchPanel } from "./mobile-search-panel"
@@ -202,44 +201,39 @@ export function MobileLayout(props: Props) {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-card"
       >
-        {/* 点位管理（默认仅展示约 5 个点位的高度，超出在列表内部滚动） */}
+        {/* 点位管理（紧凑搜索：搜索框默认折叠为「批量」左侧的图标按钮；列表内仅显示约 5 个点位） */}
         <WaypointList
           waypoints={props.waypoints}
           onRemove={props.onRemoveWaypoint}
           onRemoveMany={props.onRemoveWaypoints}
           onReorder={props.onReorderWaypoints}
           listMaxHeightClass="max-h-[320px]"
+          compactSearch
         />
 
-        {/* 路线操作 + 统计 */}
-        <div className="border-t border-border">
-          <RouteActions
-            canPlan={props.waypoints.length >= 2}
-            planning={props.planning}
-            hasRoute={!!props.route}
-            onPlan={props.onPlan}
-            onOverview={props.onOverview}
-            onClear={props.onClear}
-            error={props.planError}
-          />
+        {/* 路线统计（轻量展示距离/海拔/速度/时间，仅在 hasRoute 时显示） */}
+        <RouteStats
+          route={props.route}
+          speedLevel={props.speedLevel}
+          onSpeedChange={props.onSpeedChange}
+        />
 
-          <RouteStats
-            route={props.route}
-            speedLevel={props.speedLevel}
-            onSpeedChange={props.onSpeedChange}
-          />
-        </div>
-
-        {/* 给底部 fixed 工具栏留出空间，避免最后一项被挡住 */}
-        <div className="h-4" aria-hidden />
+        {/* 给底部紧凑动作条留出小间距 */}
+        <div className="h-2" aria-hidden />
       </div>
 
-      {/* 底部工具栏（粘底，自带 border-t / bg-card） */}
+      {/* 底部紧凑动作条：合并「路线操作 + 导入/导出」，单行高度，管理点位时不抢屏 */}
       <div className="shrink-0">
-        <BottomToolbar
+        <MobileActionBar
+          canPlan={props.waypoints.length >= 2}
+          planning={props.planning}
           hasRoute={!!props.route}
+          onPlan={props.onPlan}
+          onOverview={props.onOverview}
+          onClear={props.onClear}
           onImport={props.onImport}
           onExport={props.onExport}
+          error={props.planError}
         />
       </div>
 
