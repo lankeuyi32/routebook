@@ -22,14 +22,9 @@ interface Props {
   className?: string
   /**
    * 列表内部滚动区的最大高度（Tailwind 类名）。
-   * 用于桌面端可选限高；移动端建议改用 fillAvailable。
+   * 列表默认就是 flex-1 + 内部滚动；该属性仅作为额外的最大高度限制叠加（如桌面端可选限制 4-5 项可见）。
    */
   listMaxHeightClass?: string
-  /**
-   * 让列表区在 section 内 flex-1 撑满 + 内部滚动，section 自身需要被父级给到一个有限高度。
-   * 移动端传 true，使整个工作区只产生一个上下滚动的列表区。
-   */
-  fillAvailable?: boolean
   /**
    * 紧凑搜索：搜索框默认折叠为「批量」左边的图标按钮，点击后才展开输入框。
    * 移动端传 true 以释放点位管理标题区的纵向空间。
@@ -57,7 +52,6 @@ export function WaypointList({
   onSwap,
   className,
   listMaxHeightClass,
-  fillAvailable = false,
   compactSearch = false,
 }: Props) {
   const [batchMode, setBatchMode] = useState(false)
@@ -310,15 +304,11 @@ export function WaypointList({
         </div>
       )}
 
-      {/* 列表区：
-          - fillAvailable=true（移动端）→ 在 section 内 flex-1 撑满 + 内部滚动，是工作区唯一的滚动容器；
-          - listMaxHeightClass 提供 → 限高 + 内部滚动；
-          - 都未提供 → 自然撑开，由更外层容器统一滚动 */}
+      {/* 列表区：默认 flex-1 + 内部滚动（PC 与手机端通用）；
+          listMaxHeightClass 作为额外的最大高度限制叠加（如桌面端可选限制 4-5 项可见高度） */}
       <div
         className={cn(
-          "px-4 pb-2",
-          (fillAvailable || listMaxHeightClass) &&
-            "flex-1 min-h-0 overflow-y-auto overscroll-contain",
+          "flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-2",
           listMaxHeightClass,
         )}
       >

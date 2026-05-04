@@ -190,7 +190,6 @@ export function MobileLayout(props: Props) {
           onReorder={props.onReorderWaypoints}
           onSwap={props.onSwapWaypoints}
           compactSearch
-          fillAvailable
         />
 
         {/* 路线统计（仅在 hasRoute 时显示，固定在地点管理下方，自身不滚动） */}
