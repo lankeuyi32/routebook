@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef } from "react"
-import { Compass, Upload, Download } from "lucide-react"
+import { Upload, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -42,43 +42,33 @@ export function BottomToolbar({ hasRoute, onImport, onExport }: Props) {
   }
 
   return (
-    <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-card">
-      <button
-        type="button"
-        className="size-9 rounded-full border border-border bg-card hover:bg-accent flex flex-col items-center justify-center text-foreground transition-colors"
-        aria-label="指南针"
-      >
-        <Compass className="size-3.5" />
-        <span className="text-[8px] font-medium leading-none mt-0.5">N</span>
-      </button>
+    <div className="border-t border-border px-4 py-3 bg-card pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      {/* 隐藏的文件选择器，由「导入」按钮触发 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".gpx,.tcx,.kml,.csv,application/gpx+xml,application/vnd.google-earth.kml+xml,text/csv,text/xml,application/xml"
+        className="hidden"
+        onChange={handleFileChange}
+      />
 
-      <div className="flex items-center gap-1.5">
-        {/* 隐藏的文件选择器，由「导入」按钮触发 */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".gpx,.tcx,.kml,.csv,application/gpx+xml,application/vnd.google-earth.kml+xml,text/csv,text/xml,application/xml"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+      <div className="grid grid-cols-2 gap-2">
         <Button
           variant="outline"
-          size="sm"
           onClick={handlePickFile}
-          className="h-9 px-3 text-[12px]"
+          className="h-10 text-[13px] font-medium"
         >
-          <Upload className="size-3.5 mr-1.5" /> 导入
+          <Upload className="size-4 mr-1.5" /> 导入路书
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
               disabled={!hasRoute}
-              className="h-9 px-3 text-[12px]"
+              className="h-10 text-[13px] font-medium w-full"
             >
-              <Download className="size-3.5 mr-1.5" /> 导出
+              <Download className="size-4 mr-1.5" /> 导出路书
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

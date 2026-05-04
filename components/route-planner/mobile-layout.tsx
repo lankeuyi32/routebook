@@ -129,7 +129,7 @@ export function MobileLayout(props: Props) {
         </div>
 
         {/* 给底部 fixed 工具栏留出空间，避免最后一项被挡住 */}
-        <div className="h-14" aria-hidden />
+        <div className="h-4" aria-hidden />
       </div>
 
       {/* 底部工具栏（粘底，自带 border-t / bg-card） */}

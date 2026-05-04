@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { Waypoint, RoutePlanResult, LngLat, ElevationPoint } from "@/types/route"
-import { MapTopToolbar, MapZoomControls, type MapLayer } from "./map-toolbar"
+import { MapTopToolbar, MapZoomControls, MapNavLaunchFab, type MapLayer } from "./map-toolbar"
 import { ElevationProfile } from "./elevation-profile"
 import { getAmapJsKey, getAmapSecurityCode, reverseGeocode } from "@/services/amap"
 import { Loader2, AlertCircle } from "lucide-react"
@@ -856,17 +856,16 @@ export function AMapView({
         </div>
       )}
 
-      {/* 顶部右侧图层切换 */}
+      {/* 顶部右侧：图层 + 重载（移动端纵向纯图标，桌面端横向带标签） */}
       <MapTopToolbar
         layer={layer}
         onLayerChange={setLayer}
-        onLaunchNav={handleLaunchNav}
         onReload={handleReload}
       />
 
-      {/* 骑行模式：路况图例（绿畅 / 黄缓 / 红堵�� */}
+      {/* 骑行模式：路况图例 —— 放在左上角，避免与右上角工具栏重叠 */}
       {status === "ready" && layer === "cycling" && (
-        <div className="absolute top-14 right-3 z-10 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-2.5">
+        <div className="absolute top-3 left-3 z-10 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-2.5">
           <span className="text-[11px] text-muted-foreground font-medium">路况</span>
           <div className="flex items-center gap-1">
             <span className="size-2 rounded-full bg-emerald-500" />
@@ -883,13 +882,23 @@ export function AMapView({
         </div>
       )}
 
-      {/* �����侧缩放控件 */}
+      {/* 右侧缩放控件 + 右下角定位 */}
       <MapZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onLocate={handleLocate}
         locating={locating}
+        elevationVisible={Boolean(route && elevation.length > 0)}
       />
+
+      {/* 左下角浮动主按钮：拉起导航（仅在 ≥2 个点位时启用） */}
+      {status === "ready" && (
+        <MapNavLaunchFab
+          onLaunch={handleLaunchNav}
+          canLaunch={waypoints.length >= 2}
+          elevationVisible={Boolean(route && elevation.length > 0)}
+        />
+      )}
 
       {/* 海拔剖面 */}
       {route && elevation.length > 0 && (
