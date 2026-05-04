@@ -189,10 +189,13 @@ function createPoiPopup(opts: {
   /** 是否正在反查地址，true 时按钮禁用 */
   loading?: boolean
   onAdd: () => void
+  /** 关闭弹窗回调（来自调用方持有的 InfoWindow 实例） */
+  onClose?: () => void
 }): HTMLElement {
-  const { name, address, cityname, adname, lng, lat, loading = false, onAdd } = opts
+  const { name, address, cityname, adname, lng, lat, loading = false, onAdd, onClose } = opts
   const wrap = document.createElement("div")
   wrap.style.cssText = `
+    position:relative;
     background:#fff;
     border-radius:8px;
     box-shadow:0 8px 24px rgba(15,23,42,.16);
@@ -207,7 +210,34 @@ function createPoiPopup(opts: {
   const btnBg = loading ? "#94a3b8" : "#2563eb"
   const btnCursor = loading ? "wait" : "pointer"
   wrap.innerHTML = `
-    <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:4px;">
+    <button
+      data-close-btn
+      aria-label="关闭"
+      style="
+        position:absolute;
+        top:6px;
+        right:6px;
+        width:22px;
+        height:22px;
+        padding:0;
+        background:transparent;
+        border:none;
+        border-radius:4px;
+        color:#94a3b8;
+        cursor:pointer;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-family:inherit;
+        transition:background 0.15s, color 0.15s;
+      "
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+    <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:4px;padding-right:22px;">
       ${escapeHtml(name)}
     </div>
     ${
@@ -253,6 +283,21 @@ function createPoiPopup(opts: {
       btn.style.background = "#2563eb"
     })
   }
+  const closeBtn = wrap.querySelector<HTMLButtonElement>("[data-close-btn]")
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation()
+      onClose?.()
+    })
+    closeBtn.addEventListener("mouseenter", () => {
+      closeBtn.style.background = "#f1f5f9"
+      closeBtn.style.color = "#0f172a"
+    })
+    closeBtn.addEventListener("mouseleave", () => {
+      closeBtn.style.background = "transparent"
+      closeBtn.style.color = "#94a3b8"
+    })
+  }
   return wrap
 }
 
@@ -274,7 +319,7 @@ export function AMapView({
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
   // hotspotclick 触发时间戳，用于在 250ms 内去重 click 事件
   const lastHotspotTsRef = useRef(0)
-  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖��时视野被重置
+  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖���时视野被重置
   const prevWaypointCountRef = useRef(0)
   // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
   const userLocationMarkerRef = useRef<unknown | null>(null)
@@ -369,6 +414,8 @@ export function AMapView({
             infoWindowRef.current?.close()
           }
 
+          const handleClose = () => infoWindowRef.current?.close()
+
           // 第一帧 loading
           infoWindowRef.current?.setContent(
             createPoiPopup({
@@ -378,6 +425,7 @@ export function AMapView({
               lat,
               loading: true,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
           infoWindowRef.current?.open(map, [lng, lat])
@@ -399,6 +447,7 @@ export function AMapView({
               lat,
               loading: false,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
         })
@@ -443,6 +492,8 @@ export function AMapView({
             infoWindow.close()
           }
 
+          const handleClose = () => infoWindow.close()
+
           // 第一帧：loading 状态，按钮禁用，避免用户在反查完成前点击
           infoWindow.setContent(
             createPoiPopup({
@@ -452,6 +503,7 @@ export function AMapView({
               lat,
               loading: true,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
           infoWindow.open(map, [lng, lat])
@@ -474,6 +526,7 @@ export function AMapView({
               lat,
               loading: false,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
         })

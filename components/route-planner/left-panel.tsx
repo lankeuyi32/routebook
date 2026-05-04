@@ -40,8 +40,8 @@ export function LeftPanel(props: Props) {
   return (
     <aside
       className={[
-        // 响应式宽度：移动 280 → 平板 320 → 笔记本 360 → 桌面 400 → 大屏 440
-        "w-[280px] sm:w-[320px] md:w-[360px] xl:w-[400px] 2xl:w-[440px]",
+        // 响应式宽度：平板 360 → 笔记本 400 → 桌面 440 → 大屏 480
+        "w-[360px] md:w-[400px] xl:w-[440px] 2xl:w-[480px]",
         "shrink-0 flex flex-col border-r border-border bg-card h-screen overflow-hidden",
       ].join(" ")}
     >
@@ -67,17 +67,17 @@ export function LeftPanel(props: Props) {
         <SearchSection onSelect={props.onAddPoi} addedIds={addedIds} />
       </div>
 
-      {/* 点位管理（弹性高度，最少 200px 保证 3-4 条可见，内部独立滚动） */}
+      {/* 点位管理（弹性高度，最少 280px 保证 4-5 条可见，内部独立滚动） */}
       <WaypointList
-        className="flex-1 min-h-[200px]"
+        className="flex-1 min-h-[280px]"
         waypoints={props.waypoints}
         onRemove={props.onRemoveWaypoint}
         onRemoveMany={props.onRemoveWaypoints}
         onReorder={props.onReorderWaypoints}
       />
 
-      {/* 路线操作 + 统计（最大 38vh，超过自身滚动） */}
-      <div className="shrink-0 max-h-[38vh] overflow-y-auto border-t border-border">
+      {/* 路线操作 + 统计（最大 30vh，超过自身滚动；让点位列表能拿到更多空间） */}
+      <div className="shrink-0 max-h-[30vh] overflow-y-auto border-t border-border">
         <RouteActions
           canPlan={props.waypoints.length >= 2}
           planning={props.planning}
