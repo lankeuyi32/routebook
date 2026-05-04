@@ -82,8 +82,10 @@ export function MapTopToolbar({
         </div>
       )}
 
-      {/* 顶部右侧：移动端纵向纯图标（图层 / 重载）；桌面端横向，「拉起导航」放在「图层」左侧 */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col md:flex-row items-stretch md:items-center gap-1.5">
+      {/* 顶部右侧：
+          - 桌面端：横向「拉起导航 | 图层 | 重载」位于 top-3
+          - 移动端：纵向纯图标（图层 / 重载），下移到 top-16，避开 top-3 处的「搜索 FAB」 */}
+      <div className="absolute top-16 md:top-3 right-3 z-10 flex flex-col md:flex-row items-stretch md:items-center gap-1.5">
         {/* 拉起导航（仅桌面端，作为内联主 CTA） */}
         {onLaunchNav && (
           <Button

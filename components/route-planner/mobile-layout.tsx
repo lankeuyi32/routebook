@@ -1,14 +1,14 @@
 "use client"
 
 import { useMemo, useState, type ReactNode } from "react"
-import { Bike } from "lucide-react"
-import { SearchSection } from "./search-section"
+import { Bike, Search, X, TrendingUp } from "lucide-react"
 import { WaypointList } from "./waypoint-list"
 import { RouteActions } from "./route-actions"
 import { RouteStats } from "./route-stats"
 import { BottomToolbar } from "./bottom-toolbar"
 import { SiteFooter } from "./site-footer"
 import { ElevationProfile } from "./elevation-profile"
+import { MobileSearchPanel } from "./mobile-search-panel"
 import { cn } from "@/lib/utils"
 import type {
   AmapPOI,
@@ -54,12 +54,18 @@ export function MobileLayout(props: Props) {
     [props.waypoints],
   )
   const [scrolled, setScrolled] = useState(false)
+  // 搜索面板（仅由 FAB 二次点击 / 内部 X 关闭，不监听点击外部）
+  const [searchOpen, setSearchOpen] = useState(false)
+  // 海拔剖面（默认关闭，释放更多地点管理空间，由用户主动展开）
+  const [elevationOpen, setElevationOpen] = useState(false)
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const top = e.currentTarget.scrollTop
     if (top > HIDE_HEADER_AT && !scrolled) setScrolled(true)
     else if (top <= HIDE_HEADER_AT && scrolled) setScrolled(false)
   }
+
+  const hasElevation = Boolean(props.route && props.elevation.length > 0)
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -89,28 +95,80 @@ export function MobileLayout(props: Props) {
         </div>
       </header>
 
-      {/* 地图区：高度固定，避免被工作区挤压；底部边线视觉分割 */}
-      <div className="shrink-0 h-[38vh] min-h-[240px] max-h-[420px] flex relative border-b border-border bg-muted">
+      {/* 地图区：高度固定，地图 + 浮层（搜索 FAB / 海拔 FAB / 滑出搜索面板） */}
+      <div className="shrink-0 h-[38vh] min-h-[240px] max-h-[420px] flex relative border-b border-border bg-muted overflow-hidden">
         {props.mapNode}
+
+        {/* 搜索 FAB：右上角，与底层 map-toolbar（top-16）错开避免重叠 */}
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          aria-label={searchOpen ? "收起搜索" : "搜索地点"}
+          aria-expanded={searchOpen}
+          className={cn(
+            "absolute top-3 right-3 z-30 size-10 rounded-full shadow-lg",
+            "flex items-center justify-center transition-colors",
+            searchOpen
+              ? "bg-card border border-border text-foreground"
+              : "bg-blue-600 hover:bg-blue-700 text-white",
+          )}
+        >
+          {searchOpen ? <X className="size-4" /> : <Search className="size-4" />}
+        </button>
+
+        {/* 海拔剖面 FAB：左下角，路线就绪时显示 */}
+        {hasElevation && (
+          <button
+            type="button"
+            onClick={() => setElevationOpen((v) => !v)}
+            aria-label={elevationOpen ? "收起海拔剖面" : "展开海拔剖面"}
+            aria-pressed={elevationOpen}
+            className={cn(
+              "absolute bottom-3 left-3 z-30 h-9 px-3 rounded-md shadow-md",
+              "flex items-center gap-1.5 text-[12px] font-medium transition-colors",
+              elevationOpen
+                ? "bg-foreground text-background"
+                : "bg-card border border-border text-foreground hover:bg-accent",
+            )}
+          >
+            <TrendingUp className="size-3.5" />
+            海拔
+          </button>
+        )}
+
+        {/* 滑出式搜索面板：从右向左展开，宽度上限 360px / 85vw，仅由 FAB 二次点击或内部关闭按钮收回 */}
+        <div
+          aria-hidden={!searchOpen}
+          className={cn(
+            "absolute top-0 right-0 bottom-0 z-20 w-[min(85vw,360px)]",
+            "border-l border-border bg-card shadow-2xl",
+            "transition-transform duration-200 ease-out",
+            searchOpen ? "translate-x-0" : "translate-x-full pointer-events-none",
+          )}
+        >
+          {/* 仅在打开时挂载内容，关闭时清空状态以避免内存与无效搜索 */}
+          {searchOpen && (
+            <MobileSearchPanel
+              onSelect={props.onAddPoi}
+              addedIds={addedIds}
+              onClose={() => setSearchOpen(false)}
+            />
+          )}
+        </div>
       </div>
 
-      {/* 海拔剖面：插入到地图与搜索栏之间，仅在已规划路线时显示，不再覆盖地图 */}
-      {props.route && props.elevation.length > 0 && (
+      {/* 海拔剖面：插入到地图与下方工作区之间，仅在 FAB 切换为开启时渲染 */}
+      {hasElevation && elevationOpen && (
         <div className="shrink-0">
           <ElevationProfile data={props.elevation} />
         </div>
       )}
 
-      {/* 工作区：整体可滚动；search-section 浮层不影响这里 */}
+      {/* 工作区：地点管理 + 路线操作 + 统计；释放出更大的可滚动空间 */}
       <div
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-card"
       >
-        {/* 地点搜索（粘性置顶，搜索浮层在地图与工作区上方铺开） */}
-        <div className="sticky top-0 z-20 bg-card">
-          <SearchSection onSelect={props.onAddPoi} addedIds={addedIds} />
-        </div>
-
         {/* 点位管理（自然撑开，不限高，不内部滚动） */}
         <WaypointList
           waypoints={props.waypoints}
