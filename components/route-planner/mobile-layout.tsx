@@ -201,13 +201,12 @@ export function MobileLayout(props: Props) {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-card"
       >
-        {/* 点位管理（紧凑搜索：搜索框默认折叠为「批量」左侧的图标按钮；列表内仅显示约 5 个点位） */}
+        {/* 点位管理（紧凑搜索；列表自然撑开，由外层工作区统一滚动，避免两个滑动框） */}
         <WaypointList
           waypoints={props.waypoints}
           onRemove={props.onRemoveWaypoint}
           onRemoveMany={props.onRemoveWaypoints}
           onReorder={props.onReorderWaypoints}
-          listMaxHeightClass="max-h-[320px]"
           compactSearch
         />
 

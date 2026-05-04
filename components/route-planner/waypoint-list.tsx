@@ -230,10 +230,13 @@ export function WaypointList({
         )}
       </div>
 
-      {/* 列表（弹性，独立滚动；移动端通过 listMaxHeightClass 限制为 ~5 项高度） */}
+      {/* 列表区：
+          - 不传 listMaxHeightClass（如移动端）→ 自然撑开，不产生独立滚动条，由外层容器统一滚动；
+          - 传入 listMaxHeightClass（如桌面端 flex 布局）→ 限高 + 内部滚动 */}
       <div
         className={cn(
-          "flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-2",
+          "px-4 pb-2",
+          listMaxHeightClass && "flex-1 min-h-0 overflow-y-auto overscroll-contain",
           listMaxHeightClass,
         )}
       >
