@@ -689,7 +689,7 @@ export function AMapView({
   }
 
   /**
-   * 「拉起导航」按钮入口：先弹出对话框让用户选择起 / 终点，再走真正的唤起逻辑
+   * 「拉起导航」��钮入口：先弹出对话框让用户选择起 / 终点，再走真正的唤起逻辑
    */
   function handleLaunchNav() {
     if (waypoints.length < 2) {
@@ -700,12 +700,16 @@ export function AMapView({
   }
 
   /**
-   * 用户在对话框中确认起 / 终点后调用 —— 真正执行高德导航唤起
-   * - 桌面 / 微信内置 → 新标签打开高德 Web 导航
-   * - iOS / Android → 优先尝试 App URL Scheme（t=3 骑行），1.6s 未跳走则回落 Web
-   * - 高德骑行不支持途经点，所选起 / 终点之间的点位会被忽略
+   * 用户在对话框中确认导航方式 / 起 / 终点后调用 —— 真正执行高德导航唤起
+   * - 骑行（ride）：桌面/微信新标签 Web；移动端先试 App scheme，1.6s 未跳走回落 Web；不支持途经点
+   * - 驾车（car） ：统一走 Web URI 携带 via 多途经点（最多 16），callnative=1 由高德页面在移动端自动唤起 App
    */
-  function launchWithIndices(fromIdx: number, toIdx: number) {
+  function launchWithIndices(args: {
+    mode: "ride" | "car"
+    fromIdx: number
+    toIdx: number
+  }) {
+    const { mode, fromIdx, toIdx } = args
     const start = waypoints[fromIdx]
     const end = waypoints[toIdx]
     if (!start || !end || fromIdx === toIdx) {
@@ -716,36 +720,76 @@ export function AMapView({
     const [fromLng, fromLat] = start.poi.lngLat
     const [toLng, toLat] = end.poi.lngLat
 
-    // 起 / 终点之间是否存在被忽略的途经点
-    const lo = Math.min(fromIdx, toIdx)
-    const hi = Math.max(fromIdx, toIdx)
-    const hasMiddle = hi - lo > 1
+    // 收集起 → 终之间的途经点（按用户所选方向排列），仅驾车模式会用到
+    const via: { lng: number; lat: number; name: string }[] = []
+    if (mode === "car") {
+      if (fromIdx < toIdx) {
+        for (let i = fromIdx + 1; i < toIdx; i++) {
+          const wp = waypoints[i]
+          via.push({ lng: wp.poi.lngLat[0], lat: wp.poi.lngLat[1], name: wp.poi.name || `途经${i + 1}` })
+        }
+      } else {
+        for (let i = fromIdx - 1; i > toIdx; i--) {
+          const wp = waypoints[i]
+          via.push({ lng: wp.poi.lngLat[0], lat: wp.poi.lngLat[1], name: wp.poi.name || `途经${i + 1}` })
+        }
+      }
+    }
 
     const result = launchAmapNav(
       { lng: fromLng, lat: fromLat, name: start.poi.name || "起点" },
       { lng: toLng, lat: toLat, name: end.poi.name || "终点" },
-      hasMiddle,
+      { mode, via },
     )
 
-    // 平台与首条尝试 URL 写日志，便于排查
-    console.log("[v0] launch nav:", result.platform, result.attempts[0], { fromIdx, toIdx })
+    // 平台、模式、首条尝试 URL 写日志，便于排查
+    console.log("[v0] launch nav:", result.platform, result.mode, result.attempts[0], {
+      fromIdx,
+      toIdx,
+      viaCount: result.viaCount,
+    })
 
     // 反馈
+    const navName = mode === "car" ? "驾车导航" : "骑行导航"
+
+    if (mode === "car") {
+      // 驾车走 Web URI 统一处理
+      const desc =
+        result.viaCount > 0
+          ? `将依次途经 ${result.viaCount} 个点位${
+              result.platform === "ios" || result.platform === "android"
+                ? "；高德页面会自动尝试唤起 App"
+                : ""
+            }`
+          : result.platform === "ios" || result.platform === "android"
+            ? "高德页面会自动尝试唤起 App"
+            : undefined
+      toast.success(`已打开高德${navName}`, { description: desc, duration: 5000 })
+      return
+    }
+
+    // 骑行
     if (result.platform === "ios" || result.platform === "android") {
-      const desc = result.truncatedWaypoints
+      const lo = Math.min(fromIdx, toIdx)
+      const hi = Math.max(fromIdx, toIdx)
+      const hasMiddle = hi - lo > 1
+      const desc = hasMiddle
         ? `仅使用所选起点与终点（高德骑行不支持途经点）；若未自动唤起 App，会在 1.6 秒后跳转网页版`
         : "若未自动唤起 App，会在 1.6 秒后跳转网页版"
-      toast.success("正在唤起高德骑行导航", { description: desc, duration: 5000 })
+      toast.success(`正在唤起高德${navName}`, { description: desc, duration: 5000 })
     } else if (result.platform === "wechat") {
-      toast.message("微信内已打开网页骑行导航", {
+      toast.message(`微信内已打开网页${navName}`, {
         description: "如需 App 内导航，请右上角选择「在浏览器打开」",
         duration: 6000,
       })
     } else {
-      const desc = result.truncatedWaypoints
+      const lo = Math.min(fromIdx, toIdx)
+      const hi = Math.max(fromIdx, toIdx)
+      const hasMiddle = hi - lo > 1
+      const desc = hasMiddle
         ? `所选起 / 终点之间的途经点已被忽略（高德骑行不支持途经点）`
         : undefined
-      toast.success("已在新标签打开高德骑行导航", { description: desc, duration: 5000 })
+      toast.success(`已在新标签打开高德${navName}`, { description: desc, duration: 5000 })
     }
   }
 
