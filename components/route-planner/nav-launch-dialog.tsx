@@ -5,7 +5,8 @@
  *
  * - 支持两种导航方式：
  *   - 骑行（ride）：仅起 + 终，途经点会被忽略（高德骑行限制）
- *   - 驾车（car） ：依次途经所有中间点（最多 16 个，高德 URI 限制）
+ *   - 驾车（car） ：依次途经所有中间点；高德 URI 单次最多承载 16 个途经点，
+ *                   超出部分由 lib/launch-nav.ts 在唤起时静默截断，网页侧不做限制 / 提示
  * - 默认起点 = 第一个点位，终点 = 最后一个点位
  * - 必须两点不同
  * - 通过 onConfirm({ mode, fromIdx, toIdx }) 把所选交回父组件实际拉起导航
@@ -40,9 +41,6 @@ interface Props {
   /** 用户确认后回调：传出导航方式、起点索引、终点索引 */
   onConfirm: (args: { mode: NavMode; fromIdx: number; toIdx: number }) => void
 }
-
-/** 高德 URI 单次最多 16 个途经点 */
-const VIA_LIMIT = 16
 
 /** 把点位渲染成「序号 + 名称」便于在下拉中识别 */
 function formatLabel(w: Waypoint, idx: number) {
@@ -86,13 +84,6 @@ export function NavLaunchDialog({ open, onOpenChange, waypoints, onConfirm }: Pr
     return rev
   }, [waypoints, fromIdx, toIdx])
 
-  // 驾车下，超过限制的途经点会被截断
-  const overLimit =
-    mode === "car" && middleWaypoints.length > VIA_LIMIT
-      ? middleWaypoints.length - VIA_LIMIT
-      : 0
-  const usedVia = mode === "car" ? Math.min(middleWaypoints.length, VIA_LIMIT) : 0
-
   const sameSelection = fromIdx === toIdx
   const canConfirm = waypoints.length >= 2 && !sameSelection
 
@@ -113,7 +104,7 @@ export function NavLaunchDialog({ open, onOpenChange, waypoints, onConfirm }: Pr
           <DialogDescription>
             {mode === "ride"
               ? "高德骑行导航仅支持起点与终点两个位置，途经点会被忽略。"
-              : "驾车导航将依次途经你选择的中间点（最多 16 个）。"}
+              : "驾车导航将依次途经你选择的中间点。"}
           </DialogDescription>
         </DialogHeader>
 
@@ -214,9 +205,9 @@ export function NavLaunchDialog({ open, onOpenChange, waypoints, onConfirm }: Pr
                 <span className="truncate font-medium">{fromWp.poi.name}</span>
               </div>
 
-              {/* 驾车：列出实际经过的途经点 */}
+              {/* 驾车：列出实际经过的途经点（网页侧不做截断；超出 16 的部分由唤起时静默丢弃） */}
               {mode === "car" &&
-                middleWaypoints.slice(0, VIA_LIMIT).map(({ w, idx }) => (
+                middleWaypoints.map(({ w, idx }) => (
                   <div key={w.uid} className="flex items-start gap-2 pl-1">
                     <span className="size-1.5 rounded-full bg-muted-foreground shrink-0 mt-1.5" />
                     <span className="truncate text-muted-foreground">
@@ -250,9 +241,7 @@ export function NavLaunchDialog({ open, onOpenChange, waypoints, onConfirm }: Pr
           )}
           {!sameSelection && mode === "car" && middleWaypoints.length > 0 && (
             <p className="text-[11px] text-muted-foreground">
-              将依次途经 {usedVia} 个点位
-              {overLimit > 0 ? `（高德上限 ${VIA_LIMIT} 个，超出的 ${overLimit} 个将被忽略）` : ""}
-              。
+              将依次途经 {middleWaypoints.length} 个点位。
             </p>
           )}
         </div>
