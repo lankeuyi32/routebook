@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
-import { Bike, Search, X, TrendingUp } from "lucide-react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Bike, Search, X, TrendingUp, Maximize2, Minimize2 } from "lucide-react"
 import { WaypointList } from "./waypoint-list"
 import { RouteActions } from "./route-actions"
 import { RouteStats } from "./route-stats"
@@ -58,6 +58,17 @@ export function MobileLayout(props: Props) {
   const [searchOpen, setSearchOpen] = useState(false)
   // 海拔剖面（默认关闭，释放更多地点管理空间，由用户主动展开）
   const [elevationOpen, setElevationOpen] = useState(false)
+  // 地图全屏（在浏览器视口内填满，不调用 Fullscreen API，避免与 amap 控件冲突）
+  const [mapFullscreen, setMapFullscreen] = useState(false)
+
+  // 全屏状态变化时触发 window.resize，让高德地图实例感知容器尺寸变化重新铺满
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const t = setTimeout(() => {
+      window.dispatchEvent(new Event("resize"))
+    }, 220)
+    return () => clearTimeout(t)
+  }, [mapFullscreen])
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const top = e.currentTarget.scrollTop
@@ -95,9 +106,31 @@ export function MobileLayout(props: Props) {
         </div>
       </header>
 
-      {/* 地图区：高度固定，地图 + 浮层（搜索 FAB / 海拔 FAB / 滑出搜索面板） */}
-      <div className="shrink-0 h-[38vh] min-h-[240px] max-h-[420px] flex relative border-b border-border bg-muted overflow-hidden">
+      {/* 地图区：默认 38vh；切换全屏后变为浏览器视口铺满（fixed inset-0 z-50） */}
+      <div
+        className={cn(
+          "flex relative border-b border-border bg-muted overflow-hidden",
+          mapFullscreen
+            ? "fixed inset-0 z-50 h-screen w-screen max-h-none"
+            : "shrink-0 h-[38vh] min-h-[240px] max-h-[420px]",
+        )}
+      >
         {props.mapNode}
+
+        {/* 全屏切换：左上角（原状态条位置已让出），仅手机端可见 */}
+        <button
+          type="button"
+          onClick={() => setMapFullscreen((v) => !v)}
+          aria-label={mapFullscreen ? "退出全屏" : "全屏展示地图"}
+          aria-pressed={mapFullscreen}
+          className={cn(
+            "absolute top-3 left-3 z-30 size-10 rounded-full shadow-lg",
+            "flex items-center justify-center transition-colors",
+            "bg-card border border-border text-foreground hover:bg-accent",
+          )}
+        >
+          {mapFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+        </button>
 
         {/* 搜索 FAB：右上角，与底层 map-toolbar（top-16）错开避免重叠 */}
         <button

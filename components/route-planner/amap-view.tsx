@@ -274,7 +274,7 @@ export function AMapView({
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
   // hotspotclick 触发时间戳，用于在 250ms 内去重 click 事件
   const lastHotspotTsRef = useRef(0)
-  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖拽时视野被重置
+  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖��时视野被重置
   const prevWaypointCountRef = useRef(0)
   // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
   const userLocationMarkerRef = useRef<unknown | null>(null)
@@ -793,28 +793,23 @@ export function AMapView({
         style={{ width: "100%", height: "100%" }}
       />
 
-      {/* 顶部状态条 */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5">
-        {status === "loading" && (
-          <>
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-            <span className="text-[12px] font-medium">加载地图中…</span>
-          </>
-        )}
-        {status === "ready" && (
-          <>
-            <span className="size-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[12px] font-medium">高德地图</span>
-            <span className="text-[11px] text-muted-foreground">已加载</span>
-          </>
-        )}
-        {status === "error" && (
-          <>
-            <AlertCircle className="size-3.5 text-destructive" />
-            <span className="text-[12px] font-medium text-destructive">地图加载失败</span>
-          </>
-        )}
-      </div>
+      {/* 顶部状态条：仅在加载中 / 加载失败时显示，加载完成后隐藏不再占位 */}
+      {status !== "ready" && (
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5">
+          {status === "loading" && (
+            <>
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              <span className="text-[12px] font-medium">加载地图中…</span>
+            </>
+          )}
+          {status === "error" && (
+            <>
+              <AlertCircle className="size-3.5 text-destructive" />
+              <span className="text-[12px] font-medium text-destructive">地图加载失败</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* 错误全屏面板 */}
       {status === "error" && (
