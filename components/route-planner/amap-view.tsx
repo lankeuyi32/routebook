@@ -24,6 +24,7 @@ import { getAmapJsKey, getAmapSecurityCode, reverseGeocode } from "@/services/am
 import { Loader2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { launchAmapNav } from "@/lib/launch-nav"
+import { NavLaunchDialog } from "./nav-launch-dialog"
 
 interface Props {
   waypoints: Waypoint[]
@@ -324,6 +325,8 @@ export function AMapView({
   // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
   const userLocationMarkerRef = useRef<unknown | null>(null)
   const [locating, setLocating] = useState(false)
+  // 拉起导航前的「起 / 终点选择」对话框开关
+  const [navDialogOpen, setNavDialogOpen] = useState(false)
   // onPickPoint 用 ref 避免重新初始化地图
   const onPickPointRef = useRef(onPickPoint)
   useEffect(() => {
@@ -686,35 +689,51 @@ export function AMapView({
   }
 
   /**
-   * 拉起高德骑行导航
-   * - 桌面 / 微信内置 → 新标签打开高德 Web 导航
-   * - iOS / Android → 优先尝试 App URL Scheme（t=3 骑行），1.6s 未跳走则回落 Web
-   * - 高德骑行不支持途经点，多点路线仅使用起+终
+   * 「拉起导航」按钮入口：先弹出对话框让用户选择起 / 终点，再走真正的唤起逻辑
    */
   function handleLaunchNav() {
     if (waypoints.length < 2) {
       toast.error("至少需要两个点位才能拉起导航")
       return
     }
+    setNavDialogOpen(true)
+  }
 
-    const start = waypoints[0]
-    const end = waypoints[waypoints.length - 1]
+  /**
+   * 用户在对话框中确认起 / 终点后调用 —— 真正执行高德导航唤起
+   * - 桌面 / 微信内置 → 新标签打开高德 Web 导航
+   * - iOS / Android → 优先尝试 App URL Scheme（t=3 骑行），1.6s 未跳走则回落 Web
+   * - 高德骑行不支持途经点，所选起 / 终点之间的点位会被忽略
+   */
+  function launchWithIndices(fromIdx: number, toIdx: number) {
+    const start = waypoints[fromIdx]
+    const end = waypoints[toIdx]
+    if (!start || !end || fromIdx === toIdx) {
+      toast.error("起点与终点必须不同")
+      return
+    }
+
     const [fromLng, fromLat] = start.poi.lngLat
     const [toLng, toLat] = end.poi.lngLat
+
+    // 起 / 终点之间是否存在被忽略的途经点
+    const lo = Math.min(fromIdx, toIdx)
+    const hi = Math.max(fromIdx, toIdx)
+    const hasMiddle = hi - lo > 1
 
     const result = launchAmapNav(
       { lng: fromLng, lat: fromLat, name: start.poi.name || "起点" },
       { lng: toLng, lat: toLat, name: end.poi.name || "终点" },
-      waypoints.length > 2,
+      hasMiddle,
     )
 
     // 平台与首条尝试 URL 写日志，便于排查
-    console.log("[v0] launch nav:", result.platform, result.attempts[0])
+    console.log("[v0] launch nav:", result.platform, result.attempts[0], { fromIdx, toIdx })
 
     // 反馈
     if (result.platform === "ios" || result.platform === "android") {
       const desc = result.truncatedWaypoints
-        ? `仅使用起点与终点（高德骑行不支持途经点）；若未自动唤起 App，会在 1.6 秒后跳转网页版`
+        ? `仅使用所选起点与终点（高德骑行不支持途经点）；若未自动唤起 App，会在 1.6 秒后跳转网页版`
         : "若未自动唤起 App，会在 1.6 秒后跳转网页版"
       toast.success("正在唤起高德骑行导航", { description: desc, duration: 5000 })
     } else if (result.platform === "wechat") {
@@ -724,7 +743,7 @@ export function AMapView({
       })
     } else {
       const desc = result.truncatedWaypoints
-        ? `当前 ${waypoints.length} 个点位；高德骑行不支持途经点，仅使用起点与终点`
+        ? `所选起 / 终点之间的途经点已被忽略（高德骑行不支持途经点）`
         : undefined
       toast.success("已在新标签打开高德骑行导航", { description: desc, duration: 5000 })
     }
@@ -954,6 +973,14 @@ export function AMapView({
           </div>
         </div>
       )}
+
+      {/* 拉起导航前的「起 / 终点选择」对话框（桌面 + 移动共用） */}
+      <NavLaunchDialog
+        open={navDialogOpen}
+        onOpenChange={setNavDialogOpen}
+        waypoints={waypoints}
+        onConfirm={launchWithIndices}
+      />
     </div>
   )
 }
