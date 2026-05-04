@@ -170,6 +170,7 @@ export default function Page() {
           onRemoveWaypoint={planner.removeWaypoint}
           onRemoveWaypoints={planner.removeWaypoints}
           onReorderWaypoints={planner.reorderWaypoints}
+          onSwapWaypoints={planner.swapWaypoints}
           onPlan={planner.planRoute}
           onOverview={handleOverview}
           onClear={handleClear}

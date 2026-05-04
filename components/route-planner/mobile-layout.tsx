@@ -36,6 +36,7 @@ interface Props {
   onRemoveWaypoint: (uid: string) => void
   onRemoveWaypoints: (uids: string[]) => void
   onReorderWaypoints: (from: number, to: number) => void
+  onSwapWaypoints: (a: number, b: number) => void
   onPlan: () => void
   onOverview: () => void
   onClear: () => void
@@ -45,14 +46,11 @@ interface Props {
   mapNode: ReactNode
 }
 
-const HIDE_HEADER_AT = 24
-
 export function MobileLayout(props: Props) {
   const addedIds = useMemo(
     () => new Set(props.waypoints.map((w) => w.poi.id)),
     [props.waypoints],
   )
-  const [scrolled, setScrolled] = useState(false)
   // 搜索面板（仅由 FAB 二次点击 / 内部 X 关闭，不监听点击外部）
   const [searchOpen, setSearchOpen] = useState(false)
   // 海拔剖面（默认关闭，释放更多地点管理空间，由用户主动展开）
@@ -69,27 +67,12 @@ export function MobileLayout(props: Props) {
     return () => clearTimeout(t)
   }, [mapFullscreen])
 
-  function handleScroll(e: React.UIEvent<HTMLDivElement>) {
-    const top = e.currentTarget.scrollTop
-    if (top > HIDE_HEADER_AT && !scrolled) setScrolled(true)
-    else if (top <= HIDE_HEADER_AT && scrolled) setScrolled(false)
-  }
-
   const hasElevation = Boolean(props.route && props.elevation.length > 0)
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* 标题（向下滑动时渐隐 + 收起高度） */}
-      <header
-        className={cn(
-          "shrink-0 border-b border-border bg-card overflow-hidden",
-          "transition-[max-height,opacity,transform,padding] duration-200 ease-out",
-          scrolled
-            ? "max-h-0 opacity-0 -translate-y-1 border-b-transparent"
-            : "max-h-16 opacity-100",
-        )}
-        aria-hidden={scrolled}
-      >
+      {/* 标题（始终显示，无渐隐 / 收起动效，避免页面抖动） */}
+      <header className="shrink-0 border-b border-border bg-card">
         <div className="px-4 py-3 flex items-center gap-2">
           <div className="size-8 rounded-md bg-foreground text-background flex items-center justify-center shrink-0">
             <Bike className="size-4" />
@@ -196,29 +179,30 @@ export function MobileLayout(props: Props) {
         </div>
       )}
 
-      {/* 工作区：地点管理 + 路线操作 + 统计；释放出更大的可滚动空间 */}
-      <div
-        onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-card"
-      >
-        {/* 点位管理（紧凑搜索；列表自然撑开，由外层工作区统一滚动，避免两个滑动框） */}
+      {/* 工作区：自身不滚动；地点管理列表内部独立滚动，路线统计固定在底部不参与滚动 */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-card">
+        {/* 点位管理：撑满剩余高度，仅列表区在内部上下滑动预览所有点位 */}
         <WaypointList
+          className="flex-1 min-h-0"
           waypoints={props.waypoints}
           onRemove={props.onRemoveWaypoint}
           onRemoveMany={props.onRemoveWaypoints}
           onReorder={props.onReorderWaypoints}
+          onSwap={props.onSwapWaypoints}
           compactSearch
+          fillAvailable
         />
 
-        {/* 路线统计（轻量展示距离/海拔/速度/时间，仅在 hasRoute 时显示） */}
-        <RouteStats
-          route={props.route}
-          speedLevel={props.speedLevel}
-          onSpeedChange={props.onSpeedChange}
-        />
-
-        {/* 给底部紧凑动作条留出小间距 */}
-        <div className="h-2" aria-hidden />
+        {/* 路线统计（仅在 hasRoute 时显示，固定在地点管理下方，自身不滚动） */}
+        {props.route && (
+          <div className="shrink-0">
+            <RouteStats
+              route={props.route}
+              speedLevel={props.speedLevel}
+              onSpeedChange={props.onSpeedChange}
+            />
+          </div>
+        )}
       </div>
 
       {/* 底部紧凑动作条：合并「路线操作 + 导入/导出」，单行高度，管理点位时不抢屏 */}

@@ -63,6 +63,19 @@ export function useRoutePlanner() {
     })
   }, [])
 
+  /** 交换两个点位的位置（长按 -> 选择目标 -> 置换 交互） */
+  const swapWaypoints = useCallback((a: number, b: number) => {
+    setWaypoints((prev) => {
+      if (a === b) return prev
+      if (a < 0 || b < 0 || a >= prev.length || b >= prev.length) return prev
+      const next = [...prev]
+      const tmp = next[a]
+      next[a] = next[b]
+      next[b] = tmp
+      return next
+    })
+  }, [])
+
   const clearAll = useCallback(() => {
     setWaypoints([])
     setRoute(null)
@@ -128,6 +141,7 @@ export function useRoutePlanner() {
     removeWaypoint,
     removeWaypoints,
     reorderWaypoints,
+    swapWaypoints,
     clearAll,
     planRoute,
   }
