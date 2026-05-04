@@ -35,6 +35,8 @@ interface Props {
   onPickPoint?: (poi: Awaited<ReturnType<typeof reverseGeocode>>) => void
   /** 「重载」按钮回调，由父组件接路线重新规划逻辑；未传时回退到地图全览 */
   onReload?: () => void
+  /** 隐藏地图内置的海拔剖面浮层（移动端将海拔放到搜索栏与地图之间渲染，因此传 true） */
+  hideElevation?: boolean
 }
 
 declare global {
@@ -187,10 +189,13 @@ function createPoiPopup(opts: {
   /** 是否正在反查地址，true 时按钮禁用 */
   loading?: boolean
   onAdd: () => void
+  /** 关闭弹窗回调（来自调用方持有的 InfoWindow 实例） */
+  onClose?: () => void
 }): HTMLElement {
-  const { name, address, cityname, adname, lng, lat, loading = false, onAdd } = opts
+  const { name, address, cityname, adname, lng, lat, loading = false, onAdd, onClose } = opts
   const wrap = document.createElement("div")
   wrap.style.cssText = `
+    position:relative;
     background:#fff;
     border-radius:8px;
     box-shadow:0 8px 24px rgba(15,23,42,.16);
@@ -205,7 +210,34 @@ function createPoiPopup(opts: {
   const btnBg = loading ? "#94a3b8" : "#2563eb"
   const btnCursor = loading ? "wait" : "pointer"
   wrap.innerHTML = `
-    <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:4px;">
+    <button
+      data-close-btn
+      aria-label="关闭"
+      style="
+        position:absolute;
+        top:6px;
+        right:6px;
+        width:22px;
+        height:22px;
+        padding:0;
+        background:transparent;
+        border:none;
+        border-radius:4px;
+        color:#94a3b8;
+        cursor:pointer;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-family:inherit;
+        transition:background 0.15s, color 0.15s;
+      "
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+    <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:4px;padding-right:22px;">
       ${escapeHtml(name)}
     </div>
     ${
@@ -251,6 +283,21 @@ function createPoiPopup(opts: {
       btn.style.background = "#2563eb"
     })
   }
+  const closeBtn = wrap.querySelector<HTMLButtonElement>("[data-close-btn]")
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation()
+      onClose?.()
+    })
+    closeBtn.addEventListener("mouseenter", () => {
+      closeBtn.style.background = "#f1f5f9"
+      closeBtn.style.color = "#0f172a"
+    })
+    closeBtn.addEventListener("mouseleave", () => {
+      closeBtn.style.background = "transparent"
+      closeBtn.style.color = "#94a3b8"
+    })
+  }
   return wrap
 }
 
@@ -261,6 +308,7 @@ export function AMapView({
   overviewSignal,
   onPickPoint,
   onReload,
+  hideElevation = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<AMapInstance | null>(null)
@@ -271,7 +319,7 @@ export function AMapView({
   const infoWindowRef = useRef<AMapInfoWindowInstance | null>(null)
   // hotspotclick 触发时间戳，用于在 250ms 内去重 click 事件
   const lastHotspotTsRef = useRef(0)
-  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖拽时视野被重置
+  // 记录上一次 waypoints 数量，仅在数量变化时 fitView，避免改名/拖���时视野被重置
   const prevWaypointCountRef = useRef(0)
   // 用户当前位置 marker（GPS 定位用），与路线点位 marker 分开管理
   const userLocationMarkerRef = useRef<unknown | null>(null)
@@ -366,6 +414,8 @@ export function AMapView({
             infoWindowRef.current?.close()
           }
 
+          const handleClose = () => infoWindowRef.current?.close()
+
           // 第一帧 loading
           infoWindowRef.current?.setContent(
             createPoiPopup({
@@ -375,6 +425,7 @@ export function AMapView({
               lat,
               loading: true,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
           infoWindowRef.current?.open(map, [lng, lat])
@@ -396,6 +447,7 @@ export function AMapView({
               lat,
               loading: false,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
         })
@@ -440,6 +492,8 @@ export function AMapView({
             infoWindow.close()
           }
 
+          const handleClose = () => infoWindow.close()
+
           // 第一帧：loading 状态，按钮禁用，避免用户在反查完成前点击
           infoWindow.setContent(
             createPoiPopup({
@@ -449,6 +503,7 @@ export function AMapView({
               lat,
               loading: true,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
           infoWindow.open(map, [lng, lat])
@@ -471,6 +526,7 @@ export function AMapView({
               lat,
               loading: false,
               onAdd: handleAdd,
+              onClose: handleClose,
             }),
           )
         })
@@ -790,28 +846,23 @@ export function AMapView({
         style={{ width: "100%", height: "100%" }}
       />
 
-      {/* 顶部状态条 */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5">
-        {status === "loading" && (
-          <>
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-            <span className="text-[12px] font-medium">加载地图中…</span>
-          </>
-        )}
-        {status === "ready" && (
-          <>
-            <span className="size-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[12px] font-medium">高德地图</span>
-            <span className="text-[11px] text-muted-foreground">已加载</span>
-          </>
-        )}
-        {status === "error" && (
-          <>
-            <AlertCircle className="size-3.5 text-destructive" />
-            <span className="text-[12px] font-medium text-destructive">地图加载失败</span>
-          </>
-        )}
-      </div>
+      {/* 顶部状态条：仅在加载中 / 加载失败时显示，加载完成后隐藏不再占位 */}
+      {status !== "ready" && (
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5">
+          {status === "loading" && (
+            <>
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              <span className="text-[12px] font-medium">加载地图中…</span>
+            </>
+          )}
+          {status === "error" && (
+            <>
+              <AlertCircle className="size-3.5 text-destructive" />
+              <span className="text-[12px] font-medium text-destructive">地图加载失败</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* 错误全屏面板 */}
       {status === "error" && (
@@ -856,17 +907,18 @@ export function AMapView({
         </div>
       )}
 
-      {/* 顶部右侧图层切换 */}
+      {/* 顶部工具栏：桌面端「拉起导航 | 图层 | 重载」横排；移动端仅纵向「图层 / 重载」纯图标 */}
       <MapTopToolbar
         layer={layer}
         onLayerChange={setLayer}
-        onLaunchNav={handleLaunchNav}
         onReload={handleReload}
+        onLaunchNav={handleLaunchNav}
+        canLaunchNav={waypoints.length >= 2}
       />
 
-      {/* 骑行模式：路况图例（绿畅 / 黄缓 / 红堵�� */}
+      {/* 骑行模式：路况图例 —— 放在左上角，避免与右上角工具栏重叠 */}
       {status === "ready" && layer === "cycling" && (
-        <div className="absolute top-14 right-3 z-10 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-2.5">
+        <div className="absolute top-3 left-3 z-10 bg-card border border-border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-2.5">
           <span className="text-[11px] text-muted-foreground font-medium">路况</span>
           <div className="flex items-center gap-1">
             <span className="size-2 rounded-full bg-emerald-500" />
@@ -883,16 +935,19 @@ export function AMapView({
         </div>
       )}
 
-      {/* �����侧缩放控件 */}
+      {/* 右侧缩放 + 右下角操作区（定位 / 移动端拉起导航纯图标） */}
       <MapZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onLocate={handleLocate}
+        onLaunchNav={status === "ready" ? handleLaunchNav : undefined}
+        canLaunchNav={waypoints.length >= 2}
         locating={locating}
+        elevationVisible={Boolean(route && elevation.length > 0 && !hideElevation)}
       />
 
-      {/* 海拔剖面 */}
-      {route && elevation.length > 0 && (
+      {/* 海拔剖面：移动端通过 hideElevation 外移到搜索栏与地图之间，这里仅在桌面端覆盖渲染 */}
+      {!hideElevation && route && elevation.length > 0 && (
         <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
           <div className="pointer-events-auto">
             <ElevationProfile data={elevation} />

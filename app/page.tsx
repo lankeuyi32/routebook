@@ -50,17 +50,36 @@ export default function Page() {
   }
 
   async function handleImport(file: File) {
+    // 若已有点位/已规划路线，先询问是替换还是追加，避免静默把新文件合并到旧数据上
+    let mode: "replace" | "append" = "replace"
+    const hasExisting = planner.waypoints.length > 0 || !!planner.route
+    if (hasExisting && typeof window !== "undefined") {
+      const replace = window.confirm(
+        `当前已有 ${planner.waypoints.length} 个点位。\n\n点击「确定」=替换为新导入的点位（推荐）\n点击「取消」=追加到现有点位后面`,
+      )
+      mode = replace ? "replace" : "append"
+    }
+
     const tid = toast.loading("正在解析文件…", { description: file.name })
     try {
       const result = await parseRouteFile(file)
+      if (mode === "replace") {
+        // 先清空已有点位与路线，再批量加入，确保不与历史数据混合
+        planner.clearAll()
+      }
       planner.addWaypoints(result.pois)
-      toast.success(`已导入 ${result.pois.length} 个点位`, {
-        id: tid,
-        description: result.notice
-          ? `${result.format.toUpperCase()} · ${result.name ?? file.name} · ${result.notice}`
-          : `${result.format.toUpperCase()} · ${result.name ?? file.name}`,
-        duration: 6000,
-      })
+      toast.success(
+        mode === "replace"
+          ? `已导入 ${result.pois.length} 个点位`
+          : `已追加 ${result.pois.length} 个点位`,
+        {
+          id: tid,
+          description: result.notice
+            ? `${result.format.toUpperCase()} · ${result.name ?? file.name} · ${result.notice}`
+            : `${result.format.toUpperCase()} · ${result.name ?? file.name}`,
+          duration: 6000,
+        },
+      )
       // 自动让地图全览到导入的点位
       setOverviewSignal((s) => s + 1)
     } catch (e) {
@@ -118,6 +137,7 @@ export default function Page() {
   }
 
   // 地图节点（桌面 / 移动两种布局共用同一份实例，避免双倍 JS API 加载）
+  // 移动端把海拔剖面外移到搜索栏与地图之间，所以传 hideElevation
   const mapNode = (
     <AMapView
       waypoints={planner.waypoints}
@@ -125,6 +145,7 @@ export default function Page() {
       elevation={planner.elevation}
       overviewSignal={overviewSignal}
       onReload={handleReload}
+      hideElevation={isMobile}
       onPickPoint={(poi: AmapPOI | null) => {
         if (poi) {
           planner.addWaypoint(poi)
@@ -140,6 +161,7 @@ export default function Page() {
         <MobileLayout
           waypoints={planner.waypoints}
           route={planner.route}
+          elevation={planner.elevation}
           planning={planner.planning}
           planError={planner.planError}
           speedLevel={planner.speedLevel}
@@ -148,6 +170,7 @@ export default function Page() {
           onRemoveWaypoint={planner.removeWaypoint}
           onRemoveWaypoints={planner.removeWaypoints}
           onReorderWaypoints={planner.reorderWaypoints}
+          onSwapWaypoints={planner.swapWaypoints}
           onPlan={planner.planRoute}
           onOverview={handleOverview}
           onClear={handleClear}
