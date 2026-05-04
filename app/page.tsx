@@ -118,6 +118,7 @@ export default function Page() {
   }
 
   // 地图节点（桌面 / 移动两种布局共用同一份实例，避免双倍 JS API 加载）
+  // 移动端把海拔剖面外移到搜索栏与地图之间，所以传 hideElevation
   const mapNode = (
     <AMapView
       waypoints={planner.waypoints}
@@ -125,6 +126,7 @@ export default function Page() {
       elevation={planner.elevation}
       overviewSignal={overviewSignal}
       onReload={handleReload}
+      hideElevation={isMobile}
       onPickPoint={(poi: AmapPOI | null) => {
         if (poi) {
           planner.addWaypoint(poi)
@@ -140,6 +142,7 @@ export default function Page() {
         <MobileLayout
           waypoints={planner.waypoints}
           route={planner.route}
+          elevation={planner.elevation}
           planning={planner.planning}
           planError={planner.planError}
           speedLevel={planner.speedLevel}

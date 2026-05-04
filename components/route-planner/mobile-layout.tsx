@@ -8,9 +8,11 @@ import { RouteActions } from "./route-actions"
 import { RouteStats } from "./route-stats"
 import { BottomToolbar } from "./bottom-toolbar"
 import { SiteFooter } from "./site-footer"
+import { ElevationProfile } from "./elevation-profile"
 import { cn } from "@/lib/utils"
 import type {
   AmapPOI,
+  ElevationPoint,
   ExportFormat,
   RoutePlanResult,
   SpeedLevel,
@@ -26,6 +28,7 @@ interface PlanError {
 interface Props {
   waypoints: Waypoint[]
   route: RoutePlanResult | null
+  elevation: ElevationPoint[]
   planning: boolean
   planError: PlanError | null
   speedLevel: SpeedLevel
@@ -90,6 +93,13 @@ export function MobileLayout(props: Props) {
       <div className="shrink-0 h-[38vh] min-h-[240px] max-h-[420px] flex relative border-b border-border bg-muted">
         {props.mapNode}
       </div>
+
+      {/* 海拔剖面：插入到地图与搜索栏之间，仅在已规划路线时显示，不再覆盖地图 */}
+      {props.route && props.elevation.length > 0 && (
+        <div className="shrink-0">
+          <ElevationProfile data={props.elevation} />
+        </div>
+      )}
 
       {/* 工作区：整体可滚动；search-section 浮层不影响这里 */}
       <div

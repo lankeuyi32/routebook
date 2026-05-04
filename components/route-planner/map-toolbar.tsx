@@ -39,15 +39,16 @@ interface Props {
   onZoomIn?: () => void
   onZoomOut?: () => void
   onLocate?: () => void
+  onLaunchNav?: () => void
+  canLaunchNav?: boolean
   canUndo?: boolean
   canRedo?: boolean
 }
 
 /**
  * 顶部右侧工具栏：
- * - 移动端：垂直堆叠的纯图标按钮（图层 / 重载）
- * - 桌面端：横排，图层带文字标签
- * 撤销/重做仅在外部传入 onUndo / onRedo 时才渲染（默认未接入即隐藏）。
+ * - 桌面端（md+）：横排，按顺序为「拉起导航 | 图层 | 重载」，「拉起导航」在「标准（图层）」左侧作为主 CTA
+ * - 移动端：仅显示「图层 / 重载」纵向纯图标按钮；拉起导航按钮在右下角缩放区显示（见 MapZoomControls）
  */
 export function MapTopToolbar({
   layer,
@@ -55,6 +56,8 @@ export function MapTopToolbar({
   onUndo,
   onRedo,
   onReload,
+  onLaunchNav,
+  canLaunchNav = false,
   canUndo,
   canRedo,
 }: Props) {
@@ -62,7 +65,7 @@ export function MapTopToolbar({
 
   return (
     <>
-      {/* 顶部左侧：撤销 / 重做（仅在外部接入时显示，移动端默认也只在 md+ 显示） */}
+      {/* 顶部左侧：撤销 / 重做（仅外部接入时显示，且仅桌面端） */}
       {hasHistory && (
         <div className="absolute top-3 left-3 z-10 hidden md:flex items-center bg-card border border-border rounded-md shadow-sm">
           {onUndo && (
@@ -79,8 +82,27 @@ export function MapTopToolbar({
         </div>
       )}
 
-      {/* 顶部右侧：图层 + 重载 —— 移动端纵向纯图标，桌面端横向带标签 */}
+      {/* 顶部右侧：移动端纵向纯图标（图层 / 重载）；桌面端横向，「拉起导航」放在「图层」左侧 */}
       <div className="absolute top-3 right-3 z-10 flex flex-col md:flex-row items-stretch md:items-center gap-1.5">
+        {/* 拉起导航（仅桌面端，作为内联主 CTA） */}
+        {onLaunchNav && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={onLaunchNav}
+            disabled={!canLaunchNav}
+            aria-label="拉起高德导航"
+            className={cn(
+              "hidden md:inline-flex h-8 px-3 text-[12px] font-medium shadow-sm",
+              "bg-blue-600 hover:bg-blue-700 text-white",
+              "disabled:bg-blue-600/55 disabled:text-white/85",
+            )}
+          >
+            <Navigation className="size-3.5 mr-1.5" />
+            拉起导航
+          </Button>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -123,53 +145,20 @@ export function MapTopToolbar({
 }
 
 /**
- * 「拉起导航」浮动主按钮，置于地图左下角。
- * - 仅在 canLaunch 为 true 时启用，否则禁用（视觉提示需要先添加点位）
- * - 海拔剖面显示时自动上移，避免被遮挡
+ * 右侧缩放 + 右下角操作组（定位 / 移动端拉起导航）。
+ * - 移动端：在「定位」按钮上方堆叠一个「拉起导航」纯图标按钮（仅 logo，无文字）
+ * - 桌面端：仅显示定位（拉起导航在顶部工具栏）
+ * - elevationVisible 仅用于桌面端覆盖式海拔图时的避让；移动端海拔图已外移，不需偏移
  */
-export function MapNavLaunchFab({
-  onLaunch,
-  canLaunch,
-  elevationVisible = false,
-}: {
-  onLaunch?: () => void
-  canLaunch: boolean
-  elevationVisible?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "absolute left-3 z-10 pointer-events-none transition-[bottom] duration-200",
-        elevationVisible ? "bottom-[188px]" : "bottom-3",
-      )}
-    >
-      <Button
-        type="button"
-        size="sm"
-        onClick={onLaunch}
-        disabled={!canLaunch}
-        aria-label="拉起高德导航"
-        className={cn(
-          "pointer-events-auto h-10 px-4 rounded-full shadow-lg",
-          "bg-blue-600 hover:bg-blue-700 text-white",
-          "disabled:bg-blue-600/55 disabled:text-white/85",
-          "text-[13px] font-medium",
-        )}
-      >
-        <Navigation className="size-4 mr-1.5" />
-        拉起导航
-      </Button>
-    </div>
-  )
-}
-
 export function MapZoomControls({
   onZoomIn,
   onZoomOut,
   onLocate,
+  onLaunchNav,
+  canLaunchNav = false,
   locating = false,
   elevationVisible = false,
-}: Pick<Props, "onZoomIn" | "onZoomOut" | "onLocate"> & {
+}: Pick<Props, "onZoomIn" | "onZoomOut" | "onLocate" | "onLaunchNav" | "canLaunchNav"> & {
   locating?: boolean
   elevationVisible?: boolean
 }) {
@@ -196,6 +185,24 @@ export function MapZoomControls({
           elevationVisible ? "bottom-[188px]" : "bottom-3",
         )}
       >
+        {/* 移动端独有：拉起导航（仅图标） */}
+        {onLaunchNav && (
+          <button
+            type="button"
+            aria-label="拉起高德导航"
+            title="拉起高德导航"
+            onClick={onLaunchNav}
+            disabled={!canLaunchNav}
+            className={cn(
+              "md:hidden size-9 rounded-md shadow-sm flex items-center justify-center transition-colors",
+              "bg-blue-600 hover:bg-blue-700 text-white",
+              "disabled:bg-blue-600/55 disabled:text-white/85",
+            )}
+          >
+            <Navigation className="size-4" />
+          </button>
+        )}
+
         <button
           type="button"
           aria-label="定位到我的位置"

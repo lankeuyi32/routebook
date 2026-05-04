@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { Waypoint, RoutePlanResult, LngLat, ElevationPoint } from "@/types/route"
-import { MapTopToolbar, MapZoomControls, MapNavLaunchFab, type MapLayer } from "./map-toolbar"
+import { MapTopToolbar, MapZoomControls, type MapLayer } from "./map-toolbar"
 import { ElevationProfile } from "./elevation-profile"
 import { getAmapJsKey, getAmapSecurityCode, reverseGeocode } from "@/services/amap"
 import { Loader2, AlertCircle } from "lucide-react"
@@ -35,6 +35,8 @@ interface Props {
   onPickPoint?: (poi: Awaited<ReturnType<typeof reverseGeocode>>) => void
   /** 「重载」按钮回调，由父组件接路线重新规划逻辑；未传时回退到地图全览 */
   onReload?: () => void
+  /** 隐藏地图内置的海拔剖面浮层（移动端将海拔放到搜索栏与地图之间渲染，因此传 true） */
+  hideElevation?: boolean
 }
 
 declare global {
@@ -261,6 +263,7 @@ export function AMapView({
   overviewSignal,
   onPickPoint,
   onReload,
+  hideElevation = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<AMapInstance | null>(null)
@@ -856,11 +859,13 @@ export function AMapView({
         </div>
       )}
 
-      {/* 顶部右侧：图层 + 重载（移动端纵向纯图标，桌面端横向带标签） */}
+      {/* 顶部工具栏：桌面端「拉起导航 | 图层 | 重载」横排；移动端仅纵向「图层 / 重载」纯图标 */}
       <MapTopToolbar
         layer={layer}
         onLayerChange={setLayer}
         onReload={handleReload}
+        onLaunchNav={handleLaunchNav}
+        canLaunchNav={waypoints.length >= 2}
       />
 
       {/* 骑行模式：路况图例 —— 放在左上角，避免与右上角工具栏重叠 */}
@@ -882,26 +887,19 @@ export function AMapView({
         </div>
       )}
 
-      {/* 右侧缩放控件 + 右下角定位 */}
+      {/* 右侧缩放 + 右下角操作区（定位 / 移动端拉起导航纯图标） */}
       <MapZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onLocate={handleLocate}
+        onLaunchNav={status === "ready" ? handleLaunchNav : undefined}
+        canLaunchNav={waypoints.length >= 2}
         locating={locating}
-        elevationVisible={Boolean(route && elevation.length > 0)}
+        elevationVisible={Boolean(route && elevation.length > 0 && !hideElevation)}
       />
 
-      {/* 左下角浮动主按钮：拉起导航（仅在 ≥2 个点位时启用） */}
-      {status === "ready" && (
-        <MapNavLaunchFab
-          onLaunch={handleLaunchNav}
-          canLaunch={waypoints.length >= 2}
-          elevationVisible={Boolean(route && elevation.length > 0)}
-        />
-      )}
-
-      {/* 海拔剖面 */}
-      {route && elevation.length > 0 && (
+      {/* 海拔剖面：移动端通过 hideElevation 外移到搜索栏与地图之间，这里仅在桌面端覆盖渲染 */}
+      {!hideElevation && route && elevation.length > 0 && (
         <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
           <div className="pointer-events-auto">
             <ElevationProfile data={elevation} />
