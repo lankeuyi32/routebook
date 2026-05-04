@@ -202,12 +202,13 @@ export function MobileLayout(props: Props) {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-card"
       >
-        {/* 点位管理（自然撑开，不限高，不内部滚动） */}
+        {/* 点位管理（默认仅展示约 5 个点位的高度，超出在列表内部滚动） */}
         <WaypointList
           waypoints={props.waypoints}
           onRemove={props.onRemoveWaypoint}
           onRemoveMany={props.onRemoveWaypoints}
           onReorder={props.onReorderWaypoints}
+          listMaxHeightClass="max-h-[320px]"
         />
 
         {/* 路线操作 + 统计 */}

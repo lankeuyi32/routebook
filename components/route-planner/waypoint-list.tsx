@@ -15,6 +15,12 @@ interface Props {
   onRemoveMany: (uids: string[]) => void
   onReorder: (from: number, to: number) => void
   className?: string
+  /**
+   * 列表内部滚动区的高度限制（Tailwind 类名）。
+   * 桌面端默认不传，由父级 flex 容器决定高度；
+   * 移动端传入如 `max-h-[320px]` 让列表自身可滚动，仅默认显示 ~5 个点位。
+   */
+  listMaxHeightClass?: string
 }
 
 const ROLE_LABEL: Record<Waypoint["role"], string> = {
@@ -29,7 +35,14 @@ const ROLE_STYLE: Record<Waypoint["role"], string> = {
   end: "bg-blue-600 text-white",
 }
 
-export function WaypointList({ waypoints, onRemove, onRemoveMany, onReorder, className }: Props) {
+export function WaypointList({
+  waypoints,
+  onRemove,
+  onRemoveMany,
+  onReorder,
+  className,
+  listMaxHeightClass,
+}: Props) {
   const [batchMode, setBatchMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -180,8 +193,13 @@ export function WaypointList({ waypoints, onRemove, onRemoveMany, onReorder, cla
         )}
       </div>
 
-      {/* 列表（弹性，独立滚动） */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-2">
+      {/* 列表（弹性，独立滚动；移动端通过 listMaxHeightClass 限制为 ~5 项高度） */}
+      <div
+        className={cn(
+          "flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-2",
+          listMaxHeightClass,
+        )}
+      >
         {waypoints.length === 0 ? (
           <Empty className="border-dashed border border-border rounded-md py-6">
             <EmptyHeader>
